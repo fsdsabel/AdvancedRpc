@@ -40,20 +40,39 @@ namespace AdvancedRpcLib.Channels.Tcp
 
         public async Task<TResult> GetServerObjectAsync<TResult>()
         {
-            var msg = _messageFactory.CreateGetServerObjectMessage(_repository.CreateTypeId<TResult>());
-            var serializedMsg = _serializer.SerializeMessage(msg);
-            var response = await SendMessageAsync<RpcGetServerObjectResponseMessage>(_tcpClient.GetStream(), _serializer, serializedMsg, msg.CallId);
-            return _repository.GetObject<TResult>(this, response.InstanceId);
+            try
+            {
+                var msg = _messageFactory.CreateGetServerObjectMessage(_repository.CreateTypeId<TResult>());
+                var serializedMsg = _serializer.SerializeMessage(msg);
+                var response = await SendMessageAsync<RpcGetServerObjectResponseMessage>(_tcpClient.GetStream(), _serializer, serializedMsg, msg.CallId);
+                return _repository.GetObject<TResult>(this, response.InstanceId);
+            }
+            catch (Exception ex)
+            {
+                throw new RpcFailedException("Getting server object failed.", ex);
+            }
         }
 
-        public object CallRpcMethod(int instanceId, string methodName, object[] args)
+        public object CallRpcMethod(int instanceId, string methodName, object[] args, Type resultType)
         {
-            var msg = _messageFactory.CreateMethodCallMessage(instanceId, methodName, args);
-            var serializedMsg = _serializer.SerializeMessage(msg);
-            var response = SendMessageAsync<RpcCallResultMessage>(_tcpClient.GetStream(),
-                _serializer, serializedMsg, msg.CallId).GetAwaiter().GetResult();
+            try
+            {
+                var msg = _messageFactory.CreateMethodCallMessage(instanceId, methodName, args);
+                var serializedMsg = _serializer.SerializeMessage(msg);
+                var response = SendMessageAsync<RpcCallResultMessage>(_tcpClient.GetStream(),
+                    _serializer, serializedMsg, msg.CallId).GetAwaiter().GetResult();
 
-            return response.Result;
+                if(response.ResultType == RpcType.Proxy)
+                {
+                    return _repository.GetObject(this, resultType, Convert.ToInt32(response.Result));
+                }
+
+                return response.Result;
+            }
+            catch (Exception ex)
+            {
+                throw new RpcFailedException($"Calling remote method {methodName} on object #{instanceId} failed.", ex);
+            }
         }
 
         public void Dispose()

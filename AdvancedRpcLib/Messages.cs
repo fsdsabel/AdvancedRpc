@@ -38,6 +38,14 @@ namespace AdvancedRpcLib
     class RpcCallResultMessage : RpcMessage
     {
         public object Result { get; set; }
+
+        public RpcType ResultType { get; set; }
+    }
+
+    enum RpcType
+    {
+        Builtin = 0,
+        Proxy = 1
     }
 
     [Serializable]

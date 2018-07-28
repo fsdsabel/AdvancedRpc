@@ -77,8 +77,35 @@ namespace AdvancedRpcLib.Tests
             Assert.AreEqual("42", (await Init<ITestObject>(o)).SimpleStringConcat("4", "2"));
         }
 
+
+        [TestMethod]
+        public async Task PropertyGetSucceeds()
+        {
+            var o = new TestObject();
+            Assert.AreEqual("Test", (await Init<ITestObject>(o)).Property);
+        }
+
+        [TestMethod]
+        public async Task CallWithObjectResultSucceeds()
+        {
+            var o = new TestObject();
+            var result = (await Init<ITestObject>(o)).GetSubObject("a name");
+            Assert.AreEqual("a name", result.Name);
+        }
+
+        [TestMethod, ExpectedException(typeof(RpcFailedException))]
+        public async Task CallWithNonExistingServerFails()
+        {
+            var proxy = await Init<ITestObject>(new TestObject());
+            _serverChannel.Dispose();
+            proxy.CallMe();
+
+        }
+
         public interface ITestObject
         {
+            string Property { get; set; }
+
             string SimpleStringResult();
 
             void CallMe();
@@ -86,11 +113,26 @@ namespace AdvancedRpcLib.Tests
             int SimpleCalc(int a, int b);
 
             string SimpleStringConcat(string a, string b);
+
+            ISubObject GetSubObject(string name);
+        }
+
+        public interface ISubObject
+        {
+            string Name { get; }
+        }
+
+        class SubObject : ISubObject
+        {
+            public string Name { get; set; }
         }
 
         class TestObject : ITestObject
         {
             public bool WasCalled;
+
+
+            public string Property { get; set; } = "Test";
 
             public void CallMe()
             {
@@ -110,6 +152,11 @@ namespace AdvancedRpcLib.Tests
             public string SimpleStringConcat(string a, string b)
             {
                 return a + b;
+            }
+
+            public ISubObject GetSubObject(string name)
+            {
+                return new SubObject { Name = name };
             }
         }
     }

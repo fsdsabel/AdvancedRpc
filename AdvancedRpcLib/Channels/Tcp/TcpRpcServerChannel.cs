@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -19,6 +20,7 @@ namespace AdvancedRpcLib.Channels.Tcp
         private readonly IRpcSerializer _serializer;
         private readonly IRpcObjectRepository _objectRepository;
         private TcpListener _listener;
+        private readonly List<WeakReference<TcpClient>> _createdClients = new List<WeakReference<TcpClient>>();
 
         public TcpRpcServerChannel(
             IRpcObjectRepository objectRepository,
@@ -64,13 +66,25 @@ namespace AdvancedRpcLib.Channels.Tcp
                             args[i] = Convert.ChangeType(m.Arguments[i], targetParameterTypes[i]);
                         }
 
-                        var result = obj.GetType().GetMethod(m.MethodName).Invoke(obj, args);
-                        var response = _serializer.SerializeMessage(new RpcCallResultMessage
+                        var result = targetMethod.Invoke(obj, args);
+
+                        var resultMessage = new RpcCallResultMessage
                         {
                             CallId = m.CallId,
                             Type = RpcMessageType.CallMethod,
                             Result = result
-                        });
+                        };
+
+                        if (targetMethod.ReturnType.IsInterface)
+                        {
+                            // create a proxy
+                            var handle = _objectRepository.AddInstance(targetMethod.ReturnType, result);
+                            resultMessage.ResultType = RpcType.Proxy;
+                            resultMessage.Result = handle.InstanceId;
+                        }
+
+
+                        var response = _serializer.SerializeMessage(resultMessage);
                         SendMessage(client.GetStream(), response);
                         return true;
                     }
@@ -90,6 +104,8 @@ namespace AdvancedRpcLib.Channels.Tcp
                 while (true)
                 {
                     var client = _listener.AcceptTcpClient();
+                    PurgeOldClients();
+                    _createdClients.Add(new WeakReference<TcpClient>(client));
                     RegisterMessageCallback(data => HandleReceivedData(client, data), false);
                     //TODO: Verbindung schließen behandeln
                     RunReaderLoop(client.GetStream());
@@ -100,14 +116,33 @@ namespace AdvancedRpcLib.Channels.Tcp
             await initEvent.WaitAsync();
         }
 
-        public object CallRpcMethod(int instanceId, string methodName, object[] args)
+        public object CallRpcMethod(int instanceId, string methodName, object[] args, Type resultType)
         {
             throw new NotImplementedException();
         }
 
-        public void Dispose()
+        private void PurgeOldClients()
         {
+            foreach (var client in _createdClients.ToArray())
+            {
+                if (!client.TryGetTarget(out var aliveClient))
+                {
+                    _createdClients.Remove(client);
+                }
+            }
+        }
+
+        public void Dispose()
+        {            
             _listener.Stop();            
+            foreach(var client in _createdClients)
+            {
+                if(client.TryGetTarget(out var aliveClient))
+                {
+                    aliveClient.Close();
+                    aliveClient.Dispose();
+                }
+            }
         }
     }
 

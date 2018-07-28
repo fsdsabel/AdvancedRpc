@@ -49,12 +49,18 @@ namespace AdvancedRpcLib
             }
         }
 
-        public void AddInstance<T>(object instance)
+        public RpcObjectHandle AddInstance(Type interfaceType, object instance)
         {
             lock (_rpcObjects)
             {
-                var v = new RpcObjectHandle(typeof(T), instance);
-                _rpcObjects.Add(v, v);
+                var existing = _rpcObjects.FirstOrDefault(o => ReferenceEquals(o.Value.Object, instance));
+                if (existing.Key == null)
+                {
+                    var v = new RpcObjectHandle(interfaceType, instance);
+                    _rpcObjects.Add(v, v);
+                    return v;
+                }
+                return existing.Key;
             }
         }
 
@@ -70,23 +76,28 @@ namespace AdvancedRpcLib
             return null;
         }
 
-        public T GetObject<T>(IRpcChannel channel, int instanceId)
+        public object GetObject(IRpcChannel channel, Type interfaceType, int instanceId)
         {
             lock (_rpcObjects)
             {
 
                 if (_rpcObjects.TryGetValue(RpcObjectHandle.ComparisonHandle(instanceId), out var obj))
                 {
-                    return (T)obj.Object;
+                    return obj.Object;
                 }
-                var result = new RpcObjectHandle(typeof(T), null);
+                var result = new RpcObjectHandle(interfaceType, null);
                 _rpcObjects.Add(result, result);
-                result.Object = ImplementInterface<T>(channel, instanceId);
-                return (T)result.Object;
+                result.Object = ImplementInterface(interfaceType, channel, instanceId);
+                return result.Object;
             }
         }
 
-        private T ImplementInterface<T>(IRpcChannel channel, int instanceId)
+        public T GetObject<T>(IRpcChannel channel, int instanceId)
+        {
+            return (T)GetObject(channel, typeof(T), instanceId);
+        }
+
+        private object ImplementInterface(Type interfaceType, IRpcChannel channel, int instanceId)
         {
             var ab = AssemblyBuilder.DefineDynamicAssembly(new AssemblyName("RpcDynamicTypes"),
                 AssemblyBuilderAccess.RunAndCollect);
@@ -96,8 +107,8 @@ namespace AdvancedRpcLib
 #endif
 
             var dm = ab.DefineDynamicModule("RpcDynamicTypes.dll");
-            var tb = dm.DefineType(typeof(T).Name + "Shadow");
-            tb.AddInterfaceImplementation(typeof(T));
+            var tb = dm.DefineType(interfaceType.Name + "Shadow");
+            tb.AddInterfaceImplementation(interfaceType);
 
             var invokerField = tb.DefineField("_invoker", typeof(IRpcChannel), FieldAttributes.Private);
             var constructor = tb.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, new[] { typeof(IRpcChannel) });
@@ -109,7 +120,7 @@ namespace AdvancedRpcLib
             cil.Emit(OpCodes.Ret);
 
 
-            foreach (var method in typeof(T).GetMethods())
+            foreach (var method in interfaceType.GetMethods())
             {
                 ImplementMethod(tb, method, invokerField, instanceId);
             }
@@ -120,7 +131,7 @@ namespace AdvancedRpcLib
             ab.Save(@"RpcDynamicTypes.dll");
 #endif
 
-            return (T)Activator.CreateInstance(type, channel);
+            return Activator.CreateInstance(type, channel);
         }
 
         private void ImplementMethod(TypeBuilder tb, MethodInfo method, FieldBuilder invokerField, int instanceId)
@@ -156,11 +167,18 @@ namespace AdvancedRpcLib
                 ai++;
             }
 
+            il.Emit(OpCodes.Ldtoken, method.ReturnType);
+            il.EmitCall(OpCodes.Call, typeof(Type).GetMethod(nameof(Type.GetTypeFromHandle)), null);
+
             var m = typeof(IRpcChannel).GetMethod(nameof(IRpcChannel.CallRpcMethod));
             il.EmitCall(OpCodes.Callvirt, m, null);
-            if (method.ReturnType.IsClass)
+            if (method.ReturnType.IsClass || method.ReturnType.IsInterface)
             {
                 il.Emit(OpCodes.Isinst, method.ReturnType);
+            }
+            else if(method.ReturnType == typeof(void))
+            {
+                il.Emit(OpCodes.Pop);
             }
             else
             {
@@ -174,6 +192,7 @@ namespace AdvancedRpcLib
             tb.DefineMethodOverride(mb, method);
         }
 
+      
     }
 
 }
