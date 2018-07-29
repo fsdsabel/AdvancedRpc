@@ -159,50 +159,18 @@ namespace AdvancedRpcLib
             var dm = ab.DefineDynamicModule("RpcDynamicTypes.dll");
             var tb = dm.DefineType(delegateType.Name + $"Shadow{remoteInstanceId}");
 
-            /*var delConst = delegateType.GetConstructors()[0];
-            var constructorParameterTypes = delConst.GetParameters().Select(p => p.ParameterType).ToArray();
-            var constructor = tb.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, constructorParameterTypes);
-            var cil = constructor.GetILGenerator();
-            cil.Emit(OpCodes.Ldarg_0);
-            for (int i = 0; i < constructorParameterTypes.Length; i++)
-            {
-                cil.Emit(OpCodes.Ldarg, i + 1);
-            }
-            cil.Emit(OpCodes.Call, delConst);
-            cil.Emit(OpCodes.Ret);*/
-
             var invokerField = CreateConstructor(tb);
 
             ImplementMethod(tb, delegateType.GetMethod("Invoke"), invokerField, remoteInstanceId, false);
-            /*
-            var typeDef = delegateType.GetMethod("Invoke");
-            var parameterTypes = typeDef.GetParameters().Select(p => p.ParameterType).ToArray();
-            var m = tb.DefineMethod("InvokeProxy", MethodAttributes.Public, typeDef.ReturnType, parameterTypes);
-            var il = m.GetILGenerator();
-
-            for (int i = 0; i < parameterTypes.Length; i++)
-            {
-                il.Emit(OpCodes.Ldarg, i);
-            }
-
-            //il.Emit(OpCodes.Ldtoken, GetType());
-            //il.EmitCall(OpCodes.Call, typeof(Type).GetMethod(nameof(Type.GetTypeFromHandle)), null);
-            il.EmitCall(OpCodes.Call, GetType().GetMethod(nameof(RpcObjectRepository.Test)), null);
-            il.Emit(OpCodes.Ret);*/
+           
 
             var type = tb.CreateTypeInfo().AsType();
             var delObj = Activator.CreateInstance(type, channel);
 
             return Delegate.CreateDelegate(delegateType, delObj, "Invoke");
 
-            //return Delegate.CreateDelegate(delegateType, GetType().GetMethod("Test"));
-            //return null;
         }
 
-        public static void Test(object sender, EventArgs e)
-        {
-
-        }
 
         private FieldBuilder CreateConstructor(TypeBuilder tb)
         {

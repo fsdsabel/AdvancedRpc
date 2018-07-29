@@ -94,7 +94,7 @@ namespace AdvancedRpcLib.Channels.Tcp
 
                 if (response.ResultType == RpcType.Proxy)
                 {
-                    return GetRemoteRepository(tcpClient).GetProxyObject(this as IRpcChannel, resultType, Convert.ToInt32(response.Result));
+                    return GetRemoteRepository(tcpClient).GetProxyObject(GetRpcChannelForClient(tcpClient), resultType, Convert.ToInt32(response.Result));
                 }
 
                 return response.Result;
@@ -154,18 +154,15 @@ namespace AdvancedRpcLib.Channels.Tcp
 
         class RpcChannelWrapper : IRpcChannel
         {
-            private readonly IRpcChannel _channel;
             private readonly TcpRpcChannel _tcpChannel;
             private readonly TcpClient _client;
 
-            public RpcChannelWrapper(TcpRpcChannel tcpChannel, TcpClient client, IRpcChannel channel)
+            public RpcChannelWrapper(TcpRpcChannel tcpChannel, TcpClient client)
             {
-                _channel = channel;
                 _tcpChannel = tcpChannel;
                 _client = client;
             }
 
-            public IRpcObjectRepository ObjectRepository => _channel.ObjectRepository;
 
             public object CallRpcMethod(int instanceId, string methodName, Type[] argTypes, object[] args, Type resultType)
             {
@@ -180,7 +177,7 @@ namespace AdvancedRpcLib.Channels.Tcp
 
         protected IRpcChannel GetRpcChannelForClient(TcpClient client)
         {
-            return new RpcChannelWrapper(this, client, this as IRpcChannel); 
+            return new RpcChannelWrapper(this, client); 
         }
 
         protected bool HandleRemoteMessage(TcpClient client, ReadOnlySpan<byte> data, RpcMessage msg)

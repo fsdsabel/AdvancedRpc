@@ -13,13 +13,12 @@ namespace TestServer
         static async Task Main(string[] args)
         {
             var serverRepo = new RpcObjectRepository();
-            serverRepo.RegisterSingleton<ITestObject>(new TestObject());
-            var server = new TcpRpcServerChannel(
-                serverRepo,
+            var server = new TcpRpcServerChannel(                
                 new JsonRpcSerializer(),
                 new RpcMessageFactory(),
                 IPAddress.Loopback,
                 11234);
+            server.ObjectRepository.RegisterSingleton(new TestObject());
             await server.ListenAsync();
 
             Console.WriteLine("Press key to quit");

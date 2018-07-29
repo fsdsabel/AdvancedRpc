@@ -62,20 +62,6 @@ namespace AdvancedRpcLib.Channels.Tcp
             }
         }
 
-        public object CallRpcMethod(int instanceId, string methodName, Type[] argTypes, object[] args, Type resultType)
-        {
-            //TODO: not really needed...done by wrapper in base class
-            return CallRpcMethod(_tcpClient, instanceId, methodName, argTypes, args, resultType);
-        }
-
-      
-
-        public void RemoveInstance(int localInstanceId, int remoteInstanceId)
-        {
-            //TODO: not really needed...done by wrapper in base class
-            RemoveInstance(_tcpClient, localInstanceId, remoteInstanceId);
-        }
-
         public void Dispose()
         {
             _tcpClient.Dispose();

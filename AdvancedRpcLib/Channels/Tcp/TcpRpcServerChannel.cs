@@ -87,13 +87,7 @@ namespace AdvancedRpcLib.Channels.Tcp
 
             await initEvent.WaitAsync();
         }
-
-
-        public void RemoveInstance(int localInstanceId, int remoteInstanceId)
-        {
-            throw new NotImplementedException();
-        }
-
+        
         private void PurgeOldClients()
         {
             foreach (var client in _createdClients.ToArray())
@@ -116,11 +110,6 @@ namespace AdvancedRpcLib.Channels.Tcp
                     aliveClient.Dispose();
                 }
             }
-        }
-
-        public object CallRpcMethod(int instanceId, string methodName, Type[] argTypes, object[] args, Type resultType)
-        {
-            throw new NotImplementedException();
         }
     }
 

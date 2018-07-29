@@ -44,13 +44,14 @@ namespace AdvancedRpc
 
         static async Task Main(string[] args)
         {
+            /*
             var server = new TcpRpcServerChannel(
                 new JsonRpcSerializer(),
                 new RpcMessageFactory(),
                 IPAddress.Loopback,
                 11234);
             server.ObjectRepository.RegisterSingleton(new TestObject());
-            await server.ListenAsync();
+            await server.ListenAsync();*/
 
 
             var client = new TcpRpcClientChannel(         

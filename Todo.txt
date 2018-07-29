@@ -1,2 +1,7 @@
+- large objects
 - Exceptions
 - beim Serialisieren nicht auf den Parametertypen bauen, sondern auf den eigentlichen Objekttyp? Dann würde EventHandlersWork auch mit o-Interface-Cast funktionieren
+- Fehlerbehandlung .. Server down, etc ..
+- nur public interface methods
+- ping pong -> letzten Client detektieren -> Serverevent
+- IPC-Implementierung -> Generalisieren der Channel-Implementierung

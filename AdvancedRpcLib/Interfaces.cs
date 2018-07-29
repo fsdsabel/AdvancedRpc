@@ -22,17 +22,17 @@ namespace AdvancedRpcLib
         void RemoveInstance(int localInstanceId, int remoteInstanceId);
 
 
-        IRpcObjectRepository ObjectRepository { get; }
     }
 
 
-    public interface IRpcServerChannel : IRpcChannel
+    public interface IRpcServerChannel
     {
         Task ListenAsync();
 
+        IRpcObjectRepository ObjectRepository { get; }
     }
 
-    public interface IRpcClientChannel : IRpcChannel
+    public interface IRpcClientChannel 
     {
         Task ConnectAsync();
 
@@ -43,6 +43,9 @@ namespace AdvancedRpcLib
         /// <typeparam name="TResult"></typeparam>
         /// <returns></returns>
         Task<TResult> GetServerObjectAsync<TResult>();
+
+
+        IRpcObjectRepository ObjectRepository { get; }
     }
 
     public class RpcFailedException : Exception
