@@ -9,6 +9,7 @@ namespace AdvancedRpcLib
     public class RpcObjectRepository : IRpcObjectRepository
     {
         private readonly Dictionary<RpcObjectHandle, RpcObjectHandle> _rpcObjects = new Dictionary<RpcObjectHandle, RpcObjectHandle>();
+        
 
         public string CreateTypeId<T>()
         {
@@ -76,28 +77,36 @@ namespace AdvancedRpcLib
             return null;
         }
 
-        public object GetObject(IRpcChannel channel, Type interfaceType, int instanceId)
+        public void RemoveInstance(int instanceId)
+        {
+            lock(_rpcObjects)
+            {
+                _rpcObjects.Remove(RpcObjectHandle.ComparisonHandle(instanceId));
+            }
+        }
+
+        public object GetProxyObject(IRpcChannel channel, Type interfaceType, int remoteInstanceId)
         {
             lock (_rpcObjects)
             {
 
-                if (_rpcObjects.TryGetValue(RpcObjectHandle.ComparisonHandle(instanceId), out var obj))
+                if (_rpcObjects.TryGetValue(RpcObjectHandle.ComparisonHandle(remoteInstanceId), out var obj))
                 {
                     return obj.Object;
                 }
                 var result = new RpcObjectHandle(interfaceType, null);
                 _rpcObjects.Add(result, result);
-                result.Object = ImplementInterface(interfaceType, channel, instanceId);
+                result.Object = ImplementInterface(interfaceType, channel, remoteInstanceId, result.InstanceId);
                 return result.Object;
             }
         }
 
-        public T GetObject<T>(IRpcChannel channel, int instanceId)
+        public T GetProxyObject<T>(IRpcChannel channel, int remoteInstanceId)
         {
-            return (T)GetObject(channel, typeof(T), instanceId);
+            return (T)GetProxyObject(channel, typeof(T), remoteInstanceId);
         }
 
-        private object ImplementInterface(Type interfaceType, IRpcChannel channel, int instanceId)
+        private object ImplementInterface(Type interfaceType, IRpcChannel channel, int remoteInstanceId, int localInstanceId)
         {
             var ab = AssemblyBuilder.DefineDynamicAssembly(new AssemblyName("RpcDynamicTypes"),
                 AssemblyBuilderAccess.RunAndCollect);
@@ -105,6 +114,8 @@ namespace AdvancedRpcLib
             ab = AssemblyBuilder.DefineDynamicAssembly(new AssemblyName("RpcDynamicTypes"),
                 AssemblyBuilderAccess.RunAndSave);
 #endif
+
+            //add a destructor so we can inform other side about us not needing the object anymore
 
             var dm = ab.DefineDynamicModule("RpcDynamicTypes.dll");
             var tb = dm.DefineType(interfaceType.Name + "Shadow");
@@ -119,10 +130,23 @@ namespace AdvancedRpcLib
             cil.Emit(OpCodes.Stfld, invokerField);
             cil.Emit(OpCodes.Ret);
 
+            var destructor = tb.DefineMethod("Finalize", MethodAttributes.Family | MethodAttributes.Virtual |
+                                                MethodAttributes.HideBySig,
+                                                CallingConventions.Standard,
+                                                typeof(void),
+                                                Type.EmptyTypes);
+            var dil = destructor.GetILGenerator();
+            dil.Emit(OpCodes.Ldarg_0);
+            dil.Emit(OpCodes.Ldfld, invokerField);
+            dil.Emit(OpCodes.Ldc_I4, localInstanceId);
+            dil.Emit(OpCodes.Ldc_I4, remoteInstanceId);
+            dil.EmitCall(OpCodes.Callvirt, typeof(IRpcChannel).GetMethod(nameof(IRpcChannel.RemoveInstance)), null);
+            dil.Emit(OpCodes.Ret);
+
 
             foreach (var method in interfaceType.GetMethods())
             {
-                ImplementMethod(tb, method, invokerField, instanceId);
+                ImplementMethod(tb, method, invokerField, remoteInstanceId);
             }
 
             
@@ -134,7 +158,7 @@ namespace AdvancedRpcLib
             return Activator.CreateInstance(type, channel);
         }
 
-        private void ImplementMethod(TypeBuilder tb, MethodInfo method, FieldBuilder invokerField, int instanceId)
+        private void ImplementMethod(TypeBuilder tb, MethodInfo method, FieldBuilder invokerField, int remoteInstanceId)
         {
             var margs = method.GetParameters().Select(p => p.ParameterType).ToArray();
             var mb = tb.DefineMethod(method.Name, MethodAttributes.Public | MethodAttributes.Virtual,
@@ -146,7 +170,7 @@ namespace AdvancedRpcLib
             il.Emit(OpCodes.Ldfld, invokerField);
 
 
-            il.Emit(OpCodes.Ldc_I4, instanceId);
+            il.Emit(OpCodes.Ldc_I4, remoteInstanceId);
             il.Emit(OpCodes.Ldstr, method.Name);
 
 
@@ -192,7 +216,7 @@ namespace AdvancedRpcLib
             tb.DefineMethodOverride(mb, method);
         }
 
-      
+        
     }
 
 }

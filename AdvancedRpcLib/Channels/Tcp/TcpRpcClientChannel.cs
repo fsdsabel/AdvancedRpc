@@ -16,19 +16,21 @@ namespace AdvancedRpcLib.Channels.Tcp
         private readonly int _port;
         private readonly IRpcMessageFactory _messageFactory;
         private readonly IRpcSerializer _serializer;
-        private readonly IRpcObjectRepository _repository;
+        private readonly IRpcObjectRepository _remoteRepository, _localRepository;
 
-        public TcpRpcClientChannel(
-            IRpcObjectRepository repository,
+        public TcpRpcClientChannel(            
             IRpcSerializer serializer,
             IRpcMessageFactory messageFactory,
-            IPAddress address, int port)
+            IPAddress address, int port,
+            IRpcObjectRepository localRepository = null,
+            IRpcObjectRepository remoteRepository = null)
         {
             _address = address;
             _port = port;
             _messageFactory = messageFactory;
             _serializer = serializer;
-            _repository = repository;
+            _remoteRepository = remoteRepository ?? new RpcObjectRepository();
+            _localRepository = localRepository ?? new RpcObjectRepository();
         }
 
         public async Task ConnectAsync()
@@ -42,10 +44,8 @@ namespace AdvancedRpcLib.Channels.Tcp
         {
             try
             {
-                var msg = _messageFactory.CreateGetServerObjectMessage(_repository.CreateTypeId<TResult>());
-                var serializedMsg = _serializer.SerializeMessage(msg);
-                var response = await SendMessageAsync<RpcGetServerObjectResponseMessage>(_tcpClient.GetStream(), _serializer, serializedMsg, msg.CallId);
-                return _repository.GetObject<TResult>(this, response.InstanceId);
+                var response = await SendMessageAsync<RpcGetServerObjectResponseMessage>(() => _messageFactory.CreateGetServerObjectMessage(_remoteRepository.CreateTypeId<TResult>()));
+                return _remoteRepository.GetProxyObject<TResult>(this, response.InstanceId);
             }
             catch (Exception ex)
             {
@@ -57,14 +57,12 @@ namespace AdvancedRpcLib.Channels.Tcp
         {
             try
             {
-                var msg = _messageFactory.CreateMethodCallMessage(instanceId, methodName, args);
-                var serializedMsg = _serializer.SerializeMessage(msg);
-                var response = SendMessageAsync<RpcCallResultMessage>(_tcpClient.GetStream(),
-                    _serializer, serializedMsg, msg.CallId).GetAwaiter().GetResult();
+                var response = SendMessageAsync<RpcCallResultMessage>(() => _messageFactory.CreateMethodCallMessage(instanceId, methodName, args))
+                    .GetAwaiter().GetResult();
 
                 if(response.ResultType == RpcType.Proxy)
                 {
-                    return _repository.GetObject(this, resultType, Convert.ToInt32(response.Result));
+                    return _remoteRepository.GetProxyObject(this, resultType, Convert.ToInt32(response.Result));
                 }
 
                 return response.Result;
@@ -75,10 +73,31 @@ namespace AdvancedRpcLib.Channels.Tcp
             }
         }
 
+        private Task<T> SendMessageAsync<T>(Func<RpcMessage> msgFunc) where T : RpcMessage
+        {
+            var msg = msgFunc();
+            var serializedMsg = _serializer.SerializeMessage(msg);
+            return SendMessageAsync<T>(_tcpClient.GetStream(), _serializer, serializedMsg, msg.CallId);
+        }
+
+        public void RemoveInstance(int localInstanceId, int remoteInstanceId)
+        {
+            try
+            {
+                _remoteRepository.RemoveInstance(localInstanceId);
+                SendMessageAsync<RpcMessage>(() => _messageFactory.CreateRemoveInstanceMessage(remoteInstanceId)).GetAwaiter().GetResult();
+            }
+            catch
+            {
+                // server not reachable, that's ok
+            }
+        }
+
         public void Dispose()
         {
             _tcpClient.Dispose();
         }
+
     }
 
 }

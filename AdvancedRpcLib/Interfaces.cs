@@ -18,12 +18,16 @@ namespace AdvancedRpcLib
     public interface IRpcChannel
     {
         object CallRpcMethod(int instanceId, string methodName, object[] args, Type resultType);
+
+        void RemoveInstance(int localInstanceId, int remoteInstanceId);
     }
 
 
     public interface IRpcServerChannel : IRpcChannel
     {
         Task ListenAsync();
+
+        IRpcObjectRepository ObjectRepository { get; }
     }
 
     public interface IRpcClientChannel : IRpcChannel
@@ -63,6 +67,8 @@ namespace AdvancedRpcLib
         RpcGetServerObjectMessage CreateGetServerObjectMessage(string typeId);
 
         RpcMethodCallMessage CreateMethodCallMessage(int instanceId, string methodName, object[] arguments);
+
+        RpcRemoveInstanceMessage CreateRemoveInstanceMessage(int instanceId);
     }
 
     public interface IRpcObjectRepository
@@ -73,12 +79,14 @@ namespace AdvancedRpcLib
 
         RpcObjectHandle GetObject(string typeId);
 
-        T GetObject<T>(IRpcChannel channel, int instanceId);
+        T GetProxyObject<T>(IRpcChannel channel, int remoteInstanceId);
 
-        object GetObject(IRpcChannel channel, Type interfaceType, int instanceId);
+        object GetProxyObject(IRpcChannel channel, Type interfaceType, int remoteInstanceId);
 
         object GetInstance(int instanceId);
 
         RpcObjectHandle AddInstance(Type interfaceType, object instance);
+
+        void RemoveInstance(int instanceId);
     }
 }

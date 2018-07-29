@@ -14,20 +14,17 @@ namespace AdvancedRpcLib.Tests
         private TcpRpcClientChannel _clientChannel;
 
         private async Task<T> Init<T>(T instance)
-        {
-            var serverRepo = new RpcObjectRepository();
-            serverRepo.RegisterSingleton<T>(instance);
-            var server = _serverChannel = new TcpRpcServerChannel(
-                serverRepo,
+        {   
+            var server = _serverChannel = new TcpRpcServerChannel(                
                 new JsonRpcSerializer(),
                 new RpcMessageFactory(),
                 IPAddress.Loopback,
                 11234);
+            server.ObjectRepository.RegisterSingleton<T>(instance);
             await server.ListenAsync();
 
 
-            var client = _clientChannel = new TcpRpcClientChannel(
-                new RpcObjectRepository(),
+            var client = _clientChannel = new TcpRpcClientChannel(                
                 new JsonRpcSerializer(),
                 new RpcMessageFactory(),
                 IPAddress.Loopback,
@@ -99,8 +96,22 @@ namespace AdvancedRpcLib.Tests
             var proxy = await Init<ITestObject>(new TestObject());
             _serverChannel.Dispose();
             proxy.CallMe();
-
         }
+
+        [TestMethod]
+        public async Task ClientDestructorCalled()
+        {
+            await InitPrivate();
+            GC.Collect(2, GCCollectionMode.Forced, true);
+            GC.WaitForFullGCComplete();
+            GC.WaitForPendingFinalizers();
+        }
+
+        private async Task InitPrivate()
+        {
+            await Init<ITestObject>(new TestObject());
+        }
+
 
         public interface ITestObject
         {

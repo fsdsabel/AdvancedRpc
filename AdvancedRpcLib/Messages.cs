@@ -7,7 +7,8 @@ namespace AdvancedRpcLib
     public enum RpcMessageType
     {
         GetServerObject = 1,
-        CallMethod = 2
+        CallMethod = 2,
+        RemoveInstance = 3
     }
 
 
@@ -40,6 +41,13 @@ namespace AdvancedRpcLib
         public object Result { get; set; }
 
         public RpcType ResultType { get; set; }
+    }
+
+
+    [Serializable]
+    public class RpcRemoveInstanceMessage : RpcMessage
+    {
+        public int InstanceId { get; set; }
     }
 
     enum RpcType

@@ -26,7 +26,7 @@ namespace AdvancedRpc
 
         int Test(int a, int b)
         {
-            return (int)Convert.ChangeType(_dummy.CallRpcMethod(20, "iijji",new object[] { a, b }), typeof(int));
+            return (int)Convert.ChangeType(_dummy.CallRpcMethod(20, "iijji",new object[] { a, b }, typeof(int)), typeof(int));
         }
     }
    
@@ -38,19 +38,16 @@ namespace AdvancedRpc
 
         static async Task Main(string[] args)
         {
-            var serverRepo = new RpcObjectRepository();
-            serverRepo.RegisterSingleton<ITestObject>(new TestObject());
             var server = new TcpRpcServerChannel(
-                serverRepo,
                 new JsonRpcSerializer(),
                 new RpcMessageFactory(),
                 IPAddress.Loopback,
                 11234);
+            server.ObjectRepository.RegisterSingleton<ITestObject>(new TestObject());
             await server.ListenAsync();
 
 
-            var client = new TcpRpcClientChannel(
-                new RpcObjectRepository(),
+            var client = new TcpRpcClientChannel(         
                 new JsonRpcSerializer(),
                 new RpcMessageFactory(),
                 IPAddress.Loopback,

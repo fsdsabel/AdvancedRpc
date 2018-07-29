@@ -25,6 +25,16 @@
                 Arguments = arguments
             };
         }
+
+        public RpcRemoveInstanceMessage CreateRemoveInstanceMessage(int instanceId)
+        {
+            return new RpcRemoveInstanceMessage
+            {
+                Type = RpcMessageType.RemoveInstance,
+                CallId = _callId++,
+                InstanceId = instanceId
+            };
+        }
     }
 
 }

@@ -18,21 +18,25 @@ namespace AdvancedRpcLib.Channels.Tcp
         private readonly IPAddress _address;
         private readonly int _port;
         private readonly IRpcSerializer _serializer;
-        private readonly IRpcObjectRepository _objectRepository;
+        private readonly IRpcObjectRepository _localRepository, _remoteRepository;
         private TcpListener _listener;
         private readonly List<WeakReference<TcpClient>> _createdClients = new List<WeakReference<TcpClient>>();
 
+        public IRpcObjectRepository ObjectRepository => _localRepository;
+
         public TcpRpcServerChannel(
-            IRpcObjectRepository objectRepository,
             IRpcSerializer serializer,
             IRpcMessageFactory messageFactory,
-            IPAddress address, int port)
+            IPAddress address, int port,
+            IRpcObjectRepository localRepository = null,
+            IRpcObjectRepository remoteRepository = null)
         {
             _messageFactory = messageFactory;
             _address = address;
             _port = port;
             _serializer = serializer;
-            _objectRepository = objectRepository;
+            _remoteRepository = remoteRepository ?? new RpcObjectRepository();
+            _localRepository = localRepository ?? new RpcObjectRepository();
         }
 
         private bool HandleReceivedData(TcpClient client, ReadOnlySpan<byte> data)
@@ -43,7 +47,7 @@ namespace AdvancedRpcLib.Channels.Tcp
                 case RpcMessageType.GetServerObject:
                     {
                         var m = _serializer.DeserializeMessage<RpcGetServerObjectMessage>(data);
-                        var obj = _objectRepository.GetObject(m.TypeId);
+                        var obj = _localRepository.GetObject(m.TypeId);
                         var response = _serializer.SerializeMessage(new RpcGetServerObjectResponseMessage
                         {
                             CallId = m.CallId,
@@ -56,7 +60,7 @@ namespace AdvancedRpcLib.Channels.Tcp
                 case RpcMessageType.CallMethod:
                     {
                         var m = _serializer.DeserializeMessage<RpcMethodCallMessage>(data);
-                        var obj = _objectRepository.GetInstance(m.InstanceId);
+                        var obj = _localRepository.GetInstance(m.InstanceId);
 
                         var targetMethod = obj.GetType().GetMethod(m.MethodName);
                         var targetParameterTypes = targetMethod.GetParameters().Select(p => p.ParameterType).ToArray();
@@ -78,7 +82,7 @@ namespace AdvancedRpcLib.Channels.Tcp
                         if (targetMethod.ReturnType.IsInterface)
                         {
                             // create a proxy
-                            var handle = _objectRepository.AddInstance(targetMethod.ReturnType, result);
+                            var handle = _localRepository.AddInstance(targetMethod.ReturnType, result);
                             resultMessage.ResultType = RpcType.Proxy;
                             resultMessage.Result = handle.InstanceId;
                         }
@@ -121,6 +125,11 @@ namespace AdvancedRpcLib.Channels.Tcp
             throw new NotImplementedException();
         }
 
+        public void RemoveInstance(int localInstanceId, int remoteInstanceId)
+        {
+            throw new NotImplementedException();
+        }
+
         private void PurgeOldClients()
         {
             foreach (var client in _createdClients.ToArray())
@@ -144,6 +153,7 @@ namespace AdvancedRpcLib.Channels.Tcp
                 }
             }
         }
+
     }
 
 }
