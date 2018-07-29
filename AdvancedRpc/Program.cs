@@ -20,16 +20,21 @@ using System.Threading.Tasks;
 
 namespace AdvancedRpc
 {
-    /*
+    
     class Dummy
     {
         private IRpcChannel _dummy;
 
-        int Test(int a, int b)
+        public static void Invoke(object sender, EventArgs e)
+        {
+            Invoke(sender, e);
+        }
+
+        /*int Test(int a, int b)
         {
             return (int)Convert.ChangeType(_dummy.CallRpcMethod(20, "iijji",new object[] { a, b }, typeof(int)), typeof(int));
-        }
-    }*/
+        }*/
+    }
    
 
 

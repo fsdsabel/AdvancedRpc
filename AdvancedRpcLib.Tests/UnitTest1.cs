@@ -131,6 +131,25 @@ namespace AdvancedRpcLib.Tests
         }
 
         [TestMethod]
+        public async Task EventHandlersWork()
+        {
+            bool eventHandlerCalled = false;
+            var o = new TestObject();
+            var proxy = await Init<ITestObject>(o);
+            proxy.TestEvent += (s, e) =>
+            {
+                eventHandlerCalled = true;
+                Assert.AreEqual("test", e.Data);
+                // try to call back
+                Assert.AreEqual("data", proxy.Reflect("data"));
+            };
+
+            o.InvokeTestEvent();
+
+            Assert.IsTrue(eventHandlerCalled);
+        }
+
+        [TestMethod]
         public void ClientDestructorCalled()
         {
             InitPrivate();
@@ -143,7 +162,7 @@ namespace AdvancedRpcLib.Tests
             Assert.IsNull(_clientChannel.ObjectRepository.GetObject(_serverChannel.ObjectRepository.CreateTypeId<ITestObject>()));
             Assert.IsNotNull(_serverChannel.ObjectRepository.GetObject(_serverChannel.ObjectRepository.CreateTypeId<ITestObject>()));
         }
-
+        
         private void InitPrivate()
         {
             // make sure to not keep a reference to ITestObject .. if we use Task await we will keep one
@@ -219,8 +238,16 @@ namespace AdvancedRpcLib.Tests
         }
 
 
+        [Serializable]
+        public class CustomEventArgs : EventArgs
+        {
+            public string Data { get; set; }
+        }
+
         public interface ITestObject
         {
+            event EventHandler<CustomEventArgs> TestEvent;
+            
             bool WasCalled { get; set; }
 
             string Property { get; set; }
@@ -262,6 +289,8 @@ namespace AdvancedRpcLib.Tests
 
             public string Property { get; set; } = "Test";
 
+            public event EventHandler<CustomEventArgs> TestEvent; // TODO: CustomEventArgs
+
             public void CallMe()
             {
                 WasCalled = true;
@@ -300,6 +329,11 @@ namespace AdvancedRpcLib.Tests
             public string Reflect(string s)
             {
                 return s;
+            }
+
+            internal void InvokeTestEvent()
+            {
+                TestEvent?.Invoke(this, new CustomEventArgs { Data = "test" });
             }
         }
     }

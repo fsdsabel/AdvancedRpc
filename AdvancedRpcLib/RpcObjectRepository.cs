@@ -15,7 +15,7 @@ namespace AdvancedRpcLib
 
         public string CreateTypeId<T>()
         {
-            return typeof(T).FullName;
+            return CreateTypeId(typeof(T));
         }
 
         public string CreateTypeId(object obj)
@@ -25,7 +25,7 @@ namespace AdvancedRpcLib
 
         public string CreateTypeId(Type type)
         {
-            return type.FullName;
+            return type.AssemblyQualifiedName;
         }
 
         private void Purge()
@@ -138,7 +138,10 @@ namespace AdvancedRpcLib
                 }
                 var result = new RpcObjectHandle(null);
                 _rpcObjects.Add(result, result);
-                var instance = ImplementInterface(interfaceType, channel, remoteInstanceId, result.InstanceId);
+                var instance = 
+                    interfaceType.IsSubclassOf(typeof(Delegate)) ?
+                    ImplementDelegate(interfaceType, channel, remoteInstanceId, result.InstanceId) :
+                    ImplementInterface(interfaceType, channel, remoteInstanceId, result.InstanceId);
                 result.Object = new WeakReference<object>(instance);
                 return instance;
             }
@@ -147,6 +150,73 @@ namespace AdvancedRpcLib
         public T GetProxyObject<T>(IRpcChannel channel, int remoteInstanceId)
         {
             return (T)GetProxyObject(channel, typeof(T), remoteInstanceId);
+        }
+
+        private object ImplementDelegate(Type delegateType, IRpcChannel channel, int remoteInstanceId, int localInstanceId)
+        {
+            var ab = AssemblyBuilder.DefineDynamicAssembly(new AssemblyName("RpcDynamicTypes"),
+                AssemblyBuilderAccess.RunAndCollect);
+            var dm = ab.DefineDynamicModule("RpcDynamicTypes.dll");
+            var tb = dm.DefineType(delegateType.Name + $"Shadow{remoteInstanceId}");
+
+            /*var delConst = delegateType.GetConstructors()[0];
+            var constructorParameterTypes = delConst.GetParameters().Select(p => p.ParameterType).ToArray();
+            var constructor = tb.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, constructorParameterTypes);
+            var cil = constructor.GetILGenerator();
+            cil.Emit(OpCodes.Ldarg_0);
+            for (int i = 0; i < constructorParameterTypes.Length; i++)
+            {
+                cil.Emit(OpCodes.Ldarg, i + 1);
+            }
+            cil.Emit(OpCodes.Call, delConst);
+            cil.Emit(OpCodes.Ret);*/
+
+            var invokerField = CreateConstructor(tb);
+
+            ImplementMethod(tb, delegateType.GetMethod("Invoke"), invokerField, remoteInstanceId, false);
+            /*
+            var typeDef = delegateType.GetMethod("Invoke");
+            var parameterTypes = typeDef.GetParameters().Select(p => p.ParameterType).ToArray();
+            var m = tb.DefineMethod("InvokeProxy", MethodAttributes.Public, typeDef.ReturnType, parameterTypes);
+            var il = m.GetILGenerator();
+
+            for (int i = 0; i < parameterTypes.Length; i++)
+            {
+                il.Emit(OpCodes.Ldarg, i);
+            }
+
+            //il.Emit(OpCodes.Ldtoken, GetType());
+            //il.EmitCall(OpCodes.Call, typeof(Type).GetMethod(nameof(Type.GetTypeFromHandle)), null);
+            il.EmitCall(OpCodes.Call, GetType().GetMethod(nameof(RpcObjectRepository.Test)), null);
+            il.Emit(OpCodes.Ret);*/
+
+            var type = tb.CreateTypeInfo().AsType();
+            var delObj = Activator.CreateInstance(type, channel);
+
+            return Delegate.CreateDelegate(delegateType, delObj, "Invoke");
+
+            //return Delegate.CreateDelegate(delegateType, GetType().GetMethod("Test"));
+            //return null;
+        }
+
+        public static void Test(object sender, EventArgs e)
+        {
+
+        }
+
+        private FieldBuilder CreateConstructor(TypeBuilder tb)
+        {
+            var invokerField = tb.DefineField("_invoker", typeof(IRpcChannel), FieldAttributes.Private);
+
+            var constructor = tb.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, new[] { typeof(IRpcChannel) });
+            var cil = constructor.GetILGenerator();
+            // just store the target
+            cil.Emit(OpCodes.Ldarg_0);
+            cil.Emit(OpCodes.Ldarg_1);
+            cil.Emit(OpCodes.Stfld, invokerField);
+            cil.Emit(OpCodes.Ret);
+
+            return invokerField;
         }
 
         private object ImplementInterface(Type interfaceType, IRpcChannel channel, int remoteInstanceId, int localInstanceId)
@@ -162,16 +232,9 @@ namespace AdvancedRpcLib
 
             var dm = ab.DefineDynamicModule("RpcDynamicTypes.dll");
             var tb = dm.DefineType(interfaceType.Name + "Shadow");
-            tb.AddInterfaceImplementation(interfaceType);
-
-            var invokerField = tb.DefineField("_invoker", typeof(IRpcChannel), FieldAttributes.Private);
-            var constructor = tb.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, new[] { typeof(IRpcChannel) });
-            var cil = constructor.GetILGenerator();
-            // just store the target
-            cil.Emit(OpCodes.Ldarg_0);
-            cil.Emit(OpCodes.Ldarg_1);
-            cil.Emit(OpCodes.Stfld, invokerField);
-            cil.Emit(OpCodes.Ret);
+            
+            var invokerField = CreateConstructor(tb);
+            
 
             var destructor = tb.DefineMethod("Finalize", MethodAttributes.Family | MethodAttributes.Virtual |
                                                 MethodAttributes.HideBySig,
@@ -186,15 +249,17 @@ namespace AdvancedRpcLib
             dil.EmitCall(OpCodes.Callvirt, typeof(IRpcChannel).GetMethod(nameof(IRpcChannel.RemoveInstance)), null);
             dil.Emit(OpCodes.Ret);
 
-            var allInterfaces = interfaceType.GetInterfaces().Concat(new[] { interfaceType });
+            var allInterfaces = interfaceType.GetInterfaces().Concat(new[] { interfaceType }).Where(i => i.IsInterface);
 
             foreach (var intf in allInterfaces)
             {
+                tb.AddInterfaceImplementation(intf);
                 foreach (var method in intf.GetMethods())
                 {
-                    ImplementMethod(tb, method, invokerField, remoteInstanceId);
+                    ImplementMethod(tb, method, invokerField, remoteInstanceId, true);
                 }
             }
+
 
             
             var type = tb.CreateTypeInfo().AsType();
@@ -205,7 +270,7 @@ namespace AdvancedRpcLib
             return Activator.CreateInstance(type, channel);
         }
 
-        private void ImplementMethod(TypeBuilder tb, MethodInfo method, FieldBuilder invokerField, int remoteInstanceId)
+        private void ImplementMethod(TypeBuilder tb, MethodInfo method, FieldBuilder invokerField, int remoteInstanceId, bool overrideBase)
         {
             var margs = method.GetParameters().Select(p => p.ParameterType).ToArray();
             var mb = tb.DefineMethod(method.Name, MethodAttributes.Public | MethodAttributes.Virtual,
@@ -275,7 +340,10 @@ namespace AdvancedRpcLib
             }
             il.Emit(OpCodes.Ret);
 
-            tb.DefineMethodOverride(mb, method);
+            if (overrideBase)
+            {
+                tb.DefineMethodOverride(mb, method);
+            }
         }
 
         

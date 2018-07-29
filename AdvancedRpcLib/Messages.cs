@@ -43,6 +43,8 @@ namespace AdvancedRpcLib
         public object Value { get; set; }
 
         public RpcType Type { get; set; }
+
+        public string TypeId { get; set; }
     }
 
     [Serializable]
@@ -63,7 +65,8 @@ namespace AdvancedRpcLib
     public enum RpcType
     {
         Builtin = 0,
-        Proxy = 1
+        Proxy = 1,
+        Serialized = 2
     }
 
     [Serializable]

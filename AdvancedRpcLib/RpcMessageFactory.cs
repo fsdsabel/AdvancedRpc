@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Linq;
+using System.Reflection;
+using System.Runtime.Serialization;
 using System.Threading;
 
 namespace AdvancedRpcLib
@@ -29,11 +31,19 @@ namespace AdvancedRpcLib
                 InstanceId = instanceId,
                 Arguments = arguments.Select((a,idx) =>
                 {
+                    string typeid = null;
                     RpcType type = RpcType.Proxy;
                     if (a == null ||
                         a is IConvertible)
                     {
                         type = RpcType.Builtin;
+                    }
+                    else if (argumentTypes[idx] != typeof(object) &&
+                             !argumentTypes[idx].IsSubclassOf(typeof(Delegate)) && 
+                             argumentTypes[idx].GetCustomAttribute<SerializableAttribute>() != null)
+                    {
+                        type = RpcType.Serialized;
+                        typeid = localRepository.CreateTypeId(a);
                     }
                     else
                     {
@@ -43,7 +53,8 @@ namespace AdvancedRpcLib
                     return new RpcArgument
                     {
                         Type = type,
-                        Value = a
+                        Value = a,
+                        TypeId = typeid
                     };
                 }).ToArray()
             };

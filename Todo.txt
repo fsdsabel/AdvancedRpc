@@ -1,0 +1,2 @@
+- Exceptions
+- beim Serialisieren nicht auf den Parametertypen bauen, sondern auf den eigentlichen Objekttyp? Dann würde EventHandlersWork auch mit o-Interface-Cast funktionieren

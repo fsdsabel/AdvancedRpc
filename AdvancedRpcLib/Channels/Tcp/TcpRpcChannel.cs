@@ -1,4 +1,5 @@
-﻿using Nito.AsyncEx;
+﻿using Newtonsoft.Json;
+using Nito.AsyncEx;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -196,15 +197,21 @@ namespace AdvancedRpcLib.Channels.Tcp
                         var args = new object[m.Arguments.Length];
                         for (int i = 0; i < m.Arguments.Length; i++)
                         {
-                            if (m.Arguments[i].Type == RpcType.Builtin)
+                            switch (m.Arguments[i].Type)
                             {
-                                args[i] = Convert.ChangeType(m.Arguments[i].Value, targetParameterTypes[i]);
-                            }
-                            else
-                            {
-                                
-                                args[i] = GetRemoteRepository(client).GetProxyObject(GetRpcChannelForClient(client),
-                                    targetParameterTypes[i], (int)Convert.ChangeType(m.Arguments[i].Value, typeof(int)));
+                                case RpcType.Builtin:
+                                    args[i] = Convert.ChangeType(m.Arguments[i].Value, targetParameterTypes[i]);
+                                    break;
+                                case RpcType.Proxy:
+                                    args[i] = GetRemoteRepository(client).GetProxyObject(GetRpcChannelForClient(client),
+                                                    targetParameterTypes[i], (int)Convert.ChangeType(m.Arguments[i].Value, typeof(int)));
+                                    break;
+                                case RpcType.Serialized:
+                                    var type = Type.GetType(m.Arguments[i].TypeId);                                    
+                                    args[i] = JsonConvert.DeserializeObject(JsonConvert.SerializeObject(m.Arguments[i].Value), type);
+                                    break;
+                                default:
+                                    throw new InvalidDataException();
                             }
                         }
 
