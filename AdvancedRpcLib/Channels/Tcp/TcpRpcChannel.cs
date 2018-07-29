@@ -269,20 +269,27 @@ namespace AdvancedRpcLib.Channels.Tcp
                                 offset += reader.Read(smallMessageBuffer, offset, msgLen - offset);
                             }
 
-                            try
+                            var copy = new byte[msgLen];
+                            Array.Copy(smallMessageBuffer, copy, msgLen);
+
+
+                            Task.Run(delegate
                             {
-                                //Task.Run(delegate // ... this makes roundtrips possible but is slow
-                                //{
-                                if (!_messageNotifications[client].Notify(new ReadOnlySpan<byte>(smallMessageBuffer, 0, msgLen)))
+                                try
                                 {
-                                    Console.WriteLine("Failed to process message");
+                                    //smallMessageBuffer
+                                    if (!_messageNotifications[client].Notify(new ReadOnlySpan<byte>(copy)))
+                                    {
+                                        Console.WriteLine("Failed to process message");
+                                    }
+
                                 }
-                                //});
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine("Failed to run remote message");
-                            }
+                                catch (Exception ex)
+                                {
+                                    Console.WriteLine("Failed to run remote message");
+                                }
+                            });
+                            
                             break;
 
                         default:
