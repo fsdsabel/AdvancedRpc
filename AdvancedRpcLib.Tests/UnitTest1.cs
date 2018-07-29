@@ -99,17 +99,23 @@ namespace AdvancedRpcLib.Tests
         }
 
         [TestMethod]
-        public async Task ClientDestructorCalled()
+        public void ClientDestructorCalled()
         {
-            await InitPrivate();
-            GC.Collect(2, GCCollectionMode.Forced, true);
+            InitPrivate();
+            Assert.IsNotNull(_clientChannel.ObjectRepository.GetObject(_serverChannel.ObjectRepository.CreateTypeId<ITestObject>()));
+
+            GC.Collect();
             GC.WaitForFullGCComplete();
             GC.WaitForPendingFinalizers();
+
+            Assert.IsNull(_clientChannel.ObjectRepository.GetObject(_serverChannel.ObjectRepository.CreateTypeId<ITestObject>()));
+            Assert.IsNotNull(_serverChannel.ObjectRepository.GetObject(_serverChannel.ObjectRepository.CreateTypeId<ITestObject>()));
         }
 
-        private async Task InitPrivate()
+        private void InitPrivate()
         {
-            await Init<ITestObject>(new TestObject());
+            // make sure to not keep a reference to ITestObject .. if we use Task await we will keep one
+            Init<ITestObject>(new TestObject()).GetAwaiter().GetResult();
         }
 
 
@@ -169,6 +175,7 @@ namespace AdvancedRpcLib.Tests
             {
                 return new SubObject { Name = name };
             }
+
         }
     }
 }

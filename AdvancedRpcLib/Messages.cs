@@ -6,9 +6,10 @@ namespace AdvancedRpcLib
 {
     public enum RpcMessageType
     {
-        GetServerObject = 1,
-        CallMethod = 2,
-        RemoveInstance = 3
+        Ok = 1,
+        GetServerObject = 2,
+        CallMethod = 3,
+        RemoveInstance = 4
     }
 
 

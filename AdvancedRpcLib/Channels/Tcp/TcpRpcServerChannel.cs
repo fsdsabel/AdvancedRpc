@@ -92,6 +92,19 @@ namespace AdvancedRpcLib.Channels.Tcp
                         SendMessage(client.GetStream(), response);
                         return true;
                     }
+                case RpcMessageType.RemoveInstance:
+                    {
+                        var m = _serializer.DeserializeMessage<RpcRemoveInstanceMessage>(data);
+                        _localRepository.RemoveInstance(m.InstanceId);
+
+                        var response = _serializer.SerializeMessage(new RpcMessage
+                        {
+                            CallId = m.CallId,
+                            Type = RpcMessageType.Ok
+                        });
+                        SendMessage(client.GetStream(), response);
+                        return true;
+                    }
             }
             return false;
         }

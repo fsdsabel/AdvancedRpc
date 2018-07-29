@@ -20,6 +20,9 @@ namespace AdvancedRpcLib
         object CallRpcMethod(int instanceId, string methodName, object[] args, Type resultType);
 
         void RemoveInstance(int localInstanceId, int remoteInstanceId);
+
+
+        IRpcObjectRepository ObjectRepository { get; }
     }
 
 
@@ -27,7 +30,6 @@ namespace AdvancedRpcLib
     {
         Task ListenAsync();
 
-        IRpcObjectRepository ObjectRepository { get; }
     }
 
     public interface IRpcClientChannel : IRpcChannel

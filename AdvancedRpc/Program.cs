@@ -54,7 +54,15 @@ namespace AdvancedRpc
                 11234);
 
             await client.ConnectAsync();
+            Run(client);
 
+            GC.Collect();
+            GC.WaitForFullGCComplete();
+            GC.WaitForPendingFinalizers();
+
+
+
+            /*
             var testObj = await client.GetServerObjectAsync<ITestObject>();
             Console.WriteLine(testObj.SimpleCall());
 
@@ -67,8 +75,13 @@ namespace AdvancedRpc
             }
             sw.Stop();
             Console.WriteLine(j);
-
+            */
             Console.ReadLine();
+        }
+
+        private static void Run(TcpRpcClientChannel client)
+        {
+            client.GetServerObjectAsync<ITestObject>().GetAwaiter().GetResult();
         }
     }
 
@@ -93,6 +106,11 @@ namespace AdvancedRpc
         public string SimpleCall()
         {
             return "42";
+        }
+
+        ~TestObject()
+        {
+
         }
     }
 }

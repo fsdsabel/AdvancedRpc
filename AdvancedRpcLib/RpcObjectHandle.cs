@@ -7,21 +7,30 @@ namespace AdvancedRpcLib
     {
         private static int IdCounter;
 
+        private object _pin;
+
         private RpcObjectHandle(int instanceId)
         {
             InstanceId = instanceId;
         }
 
-        public RpcObjectHandle(Type interfaceType, object obj)
+        public RpcObjectHandle(Type interfaceType, object obj, bool pinned = false)
         {
             InstanceId = Interlocked.Increment(ref IdCounter);
-            Object = obj;
+            Object = new WeakReference<object>(obj);
             InterfaceType = interfaceType;
+            if(pinned)
+            {
+                // prevent from garbage collection as long as the handle exists
+                _pin = obj;
+            }
         }
+
+        public bool IsPinned => _pin != null;
 
         public int InstanceId { get; }
 
-        public object Object { get; internal set; }
+        public WeakReference<object> Object { get; internal set; }
 
 
         public Type InterfaceType { get; }

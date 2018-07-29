@@ -26,10 +26,25 @@ namespace AdvancedRpcLib
             return type.FullName;
         }
 
+        private void Purge()
+        {
+            lock(_rpcObjects)
+            {
+                foreach(var o in _rpcObjects.ToArray())
+                {
+                    if(!o.Key.Object.TryGetTarget(out var _))
+                    {
+                        _rpcObjects.Remove(o.Key);
+                    }
+                }
+            }
+        }
+
         public RpcObjectHandle GetObject(string typeId)
         {
             lock (_rpcObjects)
             {
+                Purge();
                 foreach (var obj in _rpcObjects)
                 {
                     if (CreateTypeId(obj.Value.InterfaceType) == typeId)
@@ -45,7 +60,8 @@ namespace AdvancedRpcLib
         {
             lock (_rpcObjects)
             {
-                var v = new RpcObjectHandle(typeof(T), singleton);
+                Purge();
+                var v = new RpcObjectHandle(typeof(T), singleton, true);
                 _rpcObjects.Add(v, v);
             }
         }
@@ -54,7 +70,15 @@ namespace AdvancedRpcLib
         {
             lock (_rpcObjects)
             {
-                var existing = _rpcObjects.FirstOrDefault(o => ReferenceEquals(o.Value.Object, instance));
+                Purge();
+                var existing = _rpcObjects.FirstOrDefault(o =>
+                {
+                    if (o.Value.Object.TryGetTarget(out var obj))
+                    {
+                        return ReferenceEquals(obj, instance);
+                    }
+                    return false;
+                });
                 if (existing.Key == null)
                 {
                     var v = new RpcObjectHandle(interfaceType, instance);
@@ -69,9 +93,13 @@ namespace AdvancedRpcLib
         {
             lock (_rpcObjects)
             {
+                Purge();
                 if (_rpcObjects.TryGetValue(RpcObjectHandle.ComparisonHandle(instanceId), out var obj))
                 {
-                    return obj.Object;
+                    if(obj.Object.TryGetTarget(out var instance))
+                    {
+                        return instance;
+                    }
                 }
             }
             return null;
@@ -81,7 +109,13 @@ namespace AdvancedRpcLib
         {
             lock(_rpcObjects)
             {
-                _rpcObjects.Remove(RpcObjectHandle.ComparisonHandle(instanceId));
+                Purge();
+                var ch = RpcObjectHandle.ComparisonHandle(instanceId);
+                var toRemove = _rpcObjects.FirstOrDefault(o => !o.Key.IsPinned && o.Key.Equals(ch));
+                if (toRemove.Key != null)
+                {
+                    _rpcObjects.Remove(toRemove.Key);
+                }
             }
         }
 
@@ -89,15 +123,19 @@ namespace AdvancedRpcLib
         {
             lock (_rpcObjects)
             {
-
+                Purge();
                 if (_rpcObjects.TryGetValue(RpcObjectHandle.ComparisonHandle(remoteInstanceId), out var obj))
                 {
-                    return obj.Object;
+                    if (obj.Object.TryGetTarget(out var inst))
+                    {
+                        return inst;
+                    }
                 }
                 var result = new RpcObjectHandle(interfaceType, null);
                 _rpcObjects.Add(result, result);
-                result.Object = ImplementInterface(interfaceType, channel, remoteInstanceId, result.InstanceId);
-                return result.Object;
+                var instance = ImplementInterface(interfaceType, channel, remoteInstanceId, result.InstanceId);
+                result.Object = new WeakReference<object>(instance);
+                return instance;
             }
         }
 

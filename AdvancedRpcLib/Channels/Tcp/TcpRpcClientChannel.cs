@@ -18,6 +18,7 @@ namespace AdvancedRpcLib.Channels.Tcp
         private readonly IRpcSerializer _serializer;
         private readonly IRpcObjectRepository _remoteRepository, _localRepository;
 
+
         public TcpRpcClientChannel(            
             IRpcSerializer serializer,
             IRpcMessageFactory messageFactory,
@@ -32,6 +33,9 @@ namespace AdvancedRpcLib.Channels.Tcp
             _remoteRepository = remoteRepository ?? new RpcObjectRepository();
             _localRepository = localRepository ?? new RpcObjectRepository();
         }
+
+
+        public IRpcObjectRepository ObjectRepository => _remoteRepository;
 
         public async Task ConnectAsync()
         {
