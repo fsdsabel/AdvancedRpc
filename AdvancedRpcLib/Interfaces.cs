@@ -17,7 +17,7 @@ namespace AdvancedRpcLib
     
     public interface IRpcChannel
     {
-        object CallRpcMethod(int instanceId, string methodName, object[] args, Type resultType);
+        object CallRpcMethod(int instanceId, string methodName, Type[] argTypes, object[] args, Type resultType);
 
         void RemoveInstance(int localInstanceId, int remoteInstanceId);
 
@@ -68,7 +68,8 @@ namespace AdvancedRpcLib
     {
         RpcGetServerObjectMessage CreateGetServerObjectMessage(string typeId);
 
-        RpcMethodCallMessage CreateMethodCallMessage(int instanceId, string methodName, object[] arguments);
+        RpcMethodCallMessage CreateMethodCallMessage(IRpcObjectRepository localRepository,
+            int instanceId, string methodName, Type[] argumentTypes, object[] arguments);
 
         RpcRemoveInstanceMessage CreateRemoveInstanceMessage(int instanceId);
     }

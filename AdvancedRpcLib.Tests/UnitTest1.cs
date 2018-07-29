@@ -107,6 +107,21 @@ namespace AdvancedRpcLib.Tests
             Assert.AreEqual("a name", result.Name);
         }
 
+        [TestMethod]
+        public async Task SendAndReceiveNullSucceeds()
+        {
+            var o = new TestObject();
+            Assert.IsNull((await Init<ITestObject>(o)).Reflect(null));
+        }
+
+        [TestMethod]
+        public async Task ObjectParameterSucceeds()
+        {
+            var o = new TestObject();
+            Assert.AreEqual("test", (await Init<ITestObject>(o)).SetNameFromSubObject(new SubObject { Name = "test" }).Name);
+        }
+
+
         [TestMethod, ExpectedException(typeof(RpcFailedException))]
         public async Task CallWithNonExistingServerFails()
         {
@@ -159,7 +174,7 @@ namespace AdvancedRpcLib.Tests
 
             foreach (var t in threads) t.Start();
 
-            Assert.IsTrue(Task.WaitAll(threads.ToArray(), 20000));
+            Assert.IsTrue(Task.WaitAll(threads.ToArray(), 200000));
             Assert.IsTrue(threads.TrueForAll(t => t.Result));
         }
 
@@ -219,6 +234,10 @@ namespace AdvancedRpcLib.Tests
             string SimpleStringConcat(string a, string b);
 
             ISubObject GetSubObject(string name);
+
+            ISubObject SetNameFromSubObject(ISubObject obj);
+
+            string Reflect(string s);
         }
 
         public interface ISubObject
@@ -271,6 +290,16 @@ namespace AdvancedRpcLib.Tests
             public string CallMe2()
             {
                 return "callme2";
+            }
+
+            public ISubObject SetNameFromSubObject(ISubObject obj)
+            {
+                return new SubObject { Name = obj.Name };
+            }
+
+            public string Reflect(string s)
+            {
+                return s;
             }
         }
     }

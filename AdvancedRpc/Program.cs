@@ -20,6 +20,7 @@ using System.Threading.Tasks;
 
 namespace AdvancedRpc
 {
+    /*
     class Dummy
     {
         private IRpcChannel _dummy;
@@ -28,7 +29,7 @@ namespace AdvancedRpc
         {
             return (int)Convert.ChangeType(_dummy.CallRpcMethod(20, "iijji",new object[] { a, b }, typeof(int)), typeof(int));
         }
-    }
+    }*/
    
 
 
@@ -43,7 +44,7 @@ namespace AdvancedRpc
                 new RpcMessageFactory(),
                 IPAddress.Loopback,
                 11234);
-            server.ObjectRepository.RegisterSingleton<ITestObject>(new TestObject());
+            server.ObjectRepository.RegisterSingleton(new TestObject());
             await server.ListenAsync();
 
 
@@ -54,15 +55,9 @@ namespace AdvancedRpc
                 11234);
 
             await client.ConnectAsync();
-            Run(client);
+      
 
-            GC.Collect();
-            GC.WaitForFullGCComplete();
-            GC.WaitForPendingFinalizers();
-
-
-
-            /*
+            
             var testObj = await client.GetServerObjectAsync<ITestObject>();
             Console.WriteLine(testObj.SimpleCall());
 
@@ -75,7 +70,7 @@ namespace AdvancedRpc
             }
             sw.Stop();
             Console.WriteLine(j);
-            */
+            
             Console.ReadLine();
         }
 

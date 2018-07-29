@@ -1,4 +1,5 @@
-﻿using Nito.AsyncEx;
+﻿using Newtonsoft.Json;
+using Nito.AsyncEx;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,34 +15,36 @@ namespace AdvancedRpcLib.Channels.Tcp
 
     public class TcpRpcServerChannel : TcpRpcChannel, IRpcServerChannel, IDisposable
     {
-        private readonly IRpcMessageFactory _messageFactory;
         private readonly IPAddress _address;
         private readonly int _port;
-        private readonly IRpcSerializer _serializer;
-        private readonly IRpcObjectRepository _localRepository, _remoteRepository;
+       
         private TcpListener _listener;
         private readonly List<WeakReference<TcpClient>> _createdClients = new List<WeakReference<TcpClient>>();
 
-        public IRpcObjectRepository ObjectRepository => _localRepository;
 
         public TcpRpcServerChannel(
             IRpcSerializer serializer,
             IRpcMessageFactory messageFactory,
             IPAddress address, int port,
             IRpcObjectRepository localRepository = null,
-            IRpcObjectRepository remoteRepository = null)
+            Func<IRpcObjectRepository> remoteRepository = null)
+            : base(serializer, messageFactory, localRepository, remoteRepository)
         {
-            _messageFactory = messageFactory;
             _address = address;
             _port = port;
-            _serializer = serializer;
-            _remoteRepository = remoteRepository ?? new RpcObjectRepository();
-            _localRepository = localRepository ?? new RpcObjectRepository();
         }
+
+
+        public IRpcObjectRepository ObjectRepository => _localRepository;
 
         private bool HandleReceivedData(TcpClient client, ReadOnlySpan<byte> data)
         {
             var msg = _serializer.DeserializeMessage<RpcMessage>(data);
+            if(HandleRemoteMessage(client, data, msg))
+            {
+                return true;
+            }
+
             switch (msg.Type)
             {
                 case RpcMessageType.GetServerObject:
@@ -56,55 +59,7 @@ namespace AdvancedRpcLib.Channels.Tcp
                         });
                         SendMessage(client.GetStream(), response);
                         return true;
-                    }
-                case RpcMessageType.CallMethod:
-                    {
-                        var m = _serializer.DeserializeMessage<RpcMethodCallMessage>(data);
-                        var obj = _localRepository.GetInstance(m.InstanceId);
-
-                        var targetMethod = obj.GetType().GetMethod(m.MethodName);
-                        var targetParameterTypes = targetMethod.GetParameters().Select(p => p.ParameterType).ToArray();
-                        var args = new object[m.Arguments.Length];
-                        for (int i = 0; i < m.Arguments.Length; i++)
-                        {
-                            args[i] = Convert.ChangeType(m.Arguments[i], targetParameterTypes[i]);
-                        }
-
-                        var result = targetMethod.Invoke(obj, args);
-
-                        var resultMessage = new RpcCallResultMessage
-                        {
-                            CallId = m.CallId,
-                            Type = RpcMessageType.CallMethod,
-                            Result = result
-                        };
-
-                        if (targetMethod.ReturnType.IsInterface)
-                        {
-                            // create a proxy
-                            var handle = _localRepository.AddInstance(targetMethod.ReturnType, result);
-                            resultMessage.ResultType = RpcType.Proxy;
-                            resultMessage.Result = handle.InstanceId;
-                        }
-
-
-                        var response = _serializer.SerializeMessage(resultMessage);
-                        SendMessage(client.GetStream(), response);
-                        return true;
-                    }
-                case RpcMessageType.RemoveInstance:
-                    {
-                        var m = _serializer.DeserializeMessage<RpcRemoveInstanceMessage>(data);
-                        _localRepository.RemoveInstance(m.InstanceId);
-
-                        var response = _serializer.SerializeMessage(new RpcMessage
-                        {
-                            CallId = m.CallId,
-                            Type = RpcMessageType.Ok
-                        });
-                        SendMessage(client.GetStream(), response);
-                        return true;
-                    }
+                    }             
             }
             return false;
         }
@@ -133,10 +88,6 @@ namespace AdvancedRpcLib.Channels.Tcp
             await initEvent.WaitAsync();
         }
 
-        public object CallRpcMethod(int instanceId, string methodName, object[] args, Type resultType)
-        {
-            throw new NotImplementedException();
-        }
 
         public void RemoveInstance(int localInstanceId, int remoteInstanceId)
         {
@@ -167,6 +118,10 @@ namespace AdvancedRpcLib.Channels.Tcp
             }
         }
 
+        public object CallRpcMethod(int instanceId, string methodName, Type[] argTypes, object[] args, Type resultType)
+        {
+            throw new NotImplementedException();
+        }
     }
 
 }

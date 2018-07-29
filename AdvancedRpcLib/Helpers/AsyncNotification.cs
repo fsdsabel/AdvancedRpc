@@ -29,27 +29,34 @@ namespace AdvancedRpcLib
 
         public bool Notify(ReadOnlySpan<byte> data)
         {
+            Tuple<DataReceivedDelegate, bool>[] callbacks;
             lock (_callbacks)
             {
-                for(int i=0;i<_callbacks.Count;i++)
+                callbacks = _callbacks.ToArray();
+            }
+            for (int i = 0; i < callbacks.Length; i++)
+            {
+                try
                 {
-                    try
+                    if (callbacks[i].Item1.Invoke(data))
                     {
-                        if (_callbacks[i].Item1.Invoke(data))
+                        if (callbacks[i].Item2)
                         {
-                            if(_callbacks[i].Item2)
+                            lock (_callbacks)
                             {
-                                _callbacks.RemoveAt(i);
+                                _callbacks.Remove(callbacks[i]);
                             }
-                            return true;
+
                         }
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine("Error in message notification: " + ex);
+                        return true;
                     }
                 }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Error in message notification: " + ex);
+                }
             }
+            
             return false;
         }
     }

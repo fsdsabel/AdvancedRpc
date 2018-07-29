@@ -6,6 +6,8 @@ using System.Reflection.Emit;
 
 namespace AdvancedRpcLib
 {
+
+
     public class RpcObjectRepository : IRpcObjectRepository
     {
         private readonly Dictionary<RpcObjectHandle, RpcObjectHandle> _rpcObjects = new Dictionary<RpcObjectHandle, RpcObjectHandle>();
@@ -218,11 +220,26 @@ namespace AdvancedRpcLib
             il.Emit(OpCodes.Ldc_I4, remoteInstanceId);
             il.Emit(OpCodes.Ldstr, method.Name);
 
+            il.Emit(OpCodes.Ldc_I4, margs.Length);
+            il.Emit(OpCodes.Newarr, typeof(Type));
+
+            int ai = 1;
+            foreach (var arg in margs)
+            {
+                il.Emit(OpCodes.Dup);
+                il.Emit(OpCodes.Ldc_I4, ai - 1);
+
+                il.Emit(OpCodes.Ldtoken, arg);
+                il.EmitCall(OpCodes.Call, typeof(Type).GetMethod(nameof(Type.GetTypeFromHandle)), null);
+                il.Emit(OpCodes.Stelem_Ref);
+                ai++;
+            }
+
 
             il.Emit(OpCodes.Ldc_I4, margs.Length);
             il.Emit(OpCodes.Newarr, typeof(object));
 
-            int ai = 1;
+            ai = 1;
             foreach (var arg in margs)
             {
                 il.Emit(OpCodes.Dup);

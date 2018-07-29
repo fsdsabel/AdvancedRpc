@@ -9,7 +9,8 @@ namespace AdvancedRpcLib
         Ok = 1,
         GetServerObject = 2,
         CallMethod = 3,
-        RemoveInstance = 4
+        RemoveInstance = 4,
+        CallMethodResult = 5
     }
 
 
@@ -33,7 +34,15 @@ namespace AdvancedRpcLib
 
         public string MethodName { get; set; }
 
-        public object[] Arguments { get; set; }
+        public RpcArgument[] Arguments { get; set; }
+    }
+
+    [Serializable]
+    public class RpcArgument
+    {
+        public object Value { get; set; }
+
+        public RpcType Type { get; set; }
     }
 
     [Serializable]
@@ -51,7 +60,7 @@ namespace AdvancedRpcLib
         public int InstanceId { get; set; }
     }
 
-    enum RpcType
+    public enum RpcType
     {
         Builtin = 0,
         Proxy = 1
