@@ -123,9 +123,9 @@ namespace AdvancedRpcLib.Channels.Tcp
                     var client = _listener.AcceptTcpClient();
                     PurgeOldClients();
                     _createdClients.Add(new WeakReference<TcpClient>(client));
-                    RegisterMessageCallback(data => HandleReceivedData(client, data), false);
+                    RegisterMessageCallback(client, data => HandleReceivedData(client, data), false);
                     //TODO: Verbindung schließen behandeln
-                    RunReaderLoop(client.GetStream());
+                    RunReaderLoop(client);
                 }
             });
 #pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed

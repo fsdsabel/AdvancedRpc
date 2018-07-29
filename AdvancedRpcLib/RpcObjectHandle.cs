@@ -14,11 +14,11 @@ namespace AdvancedRpcLib
             InstanceId = instanceId;
         }
 
-        public RpcObjectHandle(Type interfaceType, object obj, bool pinned = false)
+        public RpcObjectHandle(object obj, bool pinned = false)
         {
-            InstanceId = Interlocked.Increment(ref IdCounter);
+            InstanceId = Interlocked.Increment(ref IdCounter); // this wraps around automatically
             Object = new WeakReference<object>(obj);
-            InterfaceType = interfaceType;
+                        
             if(pinned)
             {
                 // prevent from garbage collection as long as the handle exists
@@ -30,10 +30,26 @@ namespace AdvancedRpcLib
 
         public int InstanceId { get; }
 
-        public WeakReference<object> Object { get; internal set; }
+
+        private WeakReference<object> _object;
+        public WeakReference<object> Object {
+            get => _object;
+            internal set
+            {
+                InterfaceTypes = new Type[0];
+                if (value != null && value.TryGetTarget(out var o))
+                {
+                    if (o != null)
+                    {
+                        InterfaceTypes = o.GetType().GetInterfaces();
+                    }
+                }
+                _object = value;
+            }
+        }
 
 
-        public Type InterfaceType { get; }
+        public Type[] InterfaceTypes { get; private set; }
 
         public override int GetHashCode()
         {

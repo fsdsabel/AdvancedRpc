@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -11,40 +12,46 @@ namespace AdvancedRpcLib.Channels.Tcp
 
     public abstract class TcpRpcChannel
     {
-        private readonly AsyncNotification _messageNotifications = new AsyncNotification();
+        private readonly Dictionary<TcpClient, AsyncNotification> _messageNotifications = new Dictionary<TcpClient, AsyncNotification>();
+        private readonly object _sendLock = new object();
 
-
-        protected Task<TResult> SendMessageAsync<TResult>(Stream stream, IRpcSerializer serializer, byte[] msg, int callId)
+        protected Task<TResult> SendMessageAsync<TResult>(TcpClient client, IRpcSerializer serializer, byte[] msg, int callId)
                 where TResult : RpcMessage
         {
-            var waitTask = WaitForMessageResultAsync<TResult>(serializer, callId); 
-            using (var writer = new BinaryWriter(stream, Encoding.UTF8, true))
+            var waitTask = WaitForMessageResultAsync<TResult>(client, serializer, callId);
+            lock (_sendLock)
             {
-                //TODO: longer messages > 64k, maybe with other messagetype
-                writer.Write((byte)TcpRpcChannelMessageType.Message);
-                writer.Write((ushort)msg.Length);
-                writer.Write(msg);
+                using (var writer = new BinaryWriter(client.GetStream(), Encoding.UTF8, true))
+                {
+                    //TODO: longer messages > 64k, maybe with other messagetype
+                    writer.Write((byte)TcpRpcChannelMessageType.Message);
+                    writer.Write((ushort)msg.Length);
+                    writer.Write(msg);
+                }
             }
             return waitTask;
         }
 
         protected void SendMessage(Stream stream, byte[] msg)
         {
-            using (var writer = new BinaryWriter(stream, Encoding.UTF8, true))
+            lock (_sendLock)
             {
-                //TODO: longer messages > 64k, maybe with other messagetype
-                writer.Write((byte)TcpRpcChannelMessageType.Message);
-                writer.Write((ushort)msg.Length);
-                writer.Write(msg);
+                using (var writer = new BinaryWriter(stream, Encoding.UTF8, true))
+                {
+                    //TODO: longer messages > 64k, maybe with other messagetype
+                    writer.Write((byte)TcpRpcChannelMessageType.Message);
+                    writer.Write((ushort)msg.Length);
+                    writer.Write(msg);
+                }
             }
         }
 
-        private async Task<TResult> WaitForMessageResultAsync<TResult>(IRpcSerializer serializer, int callId)
+        private async Task<TResult> WaitForMessageResultAsync<TResult>(TcpClient client, IRpcSerializer serializer, int callId)
             where TResult : RpcMessage
         {
             var re = new AsyncManualResetEvent(false);
             TResult result = default;
-            _messageNotifications.Register((data) =>
+            RegisterMessageCallback(client, (data) =>
             {
                 var bareMsg = serializer.DeserializeMessage<RpcMessage>(data);
                 if (bareMsg.CallId == callId)
@@ -60,17 +67,25 @@ namespace AdvancedRpcLib.Channels.Tcp
             return result;
         }
 
-        protected private void RegisterMessageCallback(AsyncNotification.DataReceivedDelegate callback, bool autoremove)
+        protected private void RegisterMessageCallback(TcpClient client, AsyncNotification.DataReceivedDelegate callback, bool autoremove)
         {
-            _messageNotifications.Register(callback, autoremove);
+            lock(_messageNotifications)
+            {
+                if(!_messageNotifications.ContainsKey(client))
+                {
+                    _messageNotifications.Add(client, new AsyncNotification());
+                }
+                _messageNotifications[client].Register(callback, autoremove);
+            }
+         
         }
 
 
-        protected void RunReaderLoop(Stream stream)
+        protected void RunReaderLoop(TcpClient client)
         {
             Task.Run(delegate
             {
-                var reader = new BinaryReader(stream, Encoding.UTF8, true);
+                var reader = new BinaryReader(client.GetStream(), Encoding.UTF8, true);
                 var smallMessageBuffer = new byte[ushort.MaxValue];
 
                 while (true)
@@ -85,8 +100,8 @@ namespace AdvancedRpcLib.Channels.Tcp
                             {
                                 offset += reader.Read(smallMessageBuffer, offset, msgLen - offset);
                             }
-
-                            if(!_messageNotifications.Notify(new ReadOnlySpan<byte>(smallMessageBuffer, 0, msgLen)))
+                            
+                            if(!_messageNotifications[client].Notify(new ReadOnlySpan<byte>(smallMessageBuffer, 0, msgLen)))
                             {
                                 Console.WriteLine("Failed to process message");
                             }

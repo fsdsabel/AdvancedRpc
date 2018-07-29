@@ -77,7 +77,7 @@ namespace AdvancedRpcLib
     {
         string CreateTypeId<T>();
 
-        void RegisterSingleton<T>(object singleton);
+        void RegisterSingleton(object singleton);
 
         RpcObjectHandle GetObject(string typeId);
 

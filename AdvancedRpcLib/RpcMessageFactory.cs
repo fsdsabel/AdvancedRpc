@@ -1,4 +1,6 @@
-﻿namespace AdvancedRpcLib
+﻿using System.Threading;
+
+namespace AdvancedRpcLib
 {
     public class RpcMessageFactory : IRpcMessageFactory
     {
@@ -10,7 +12,7 @@
             {
                 Type = RpcMessageType.GetServerObject,
                 TypeId = typeId,
-                CallId = _callId++
+                CallId = Interlocked.Increment(ref _callId) // wraps around
             };
         }
 
@@ -19,7 +21,7 @@
             return new RpcMethodCallMessage
             {
                 Type = RpcMessageType.CallMethod,
-                CallId = _callId++,
+                CallId = Interlocked.Increment(ref _callId),
                 MethodName = methodName,
                 InstanceId = instanceId,
                 Arguments = arguments
@@ -31,7 +33,7 @@
             return new RpcRemoveInstanceMessage
             {
                 Type = RpcMessageType.RemoveInstance,
-                CallId = _callId++,
+                CallId = Interlocked.Increment(ref _callId),
                 InstanceId = instanceId
             };
         }

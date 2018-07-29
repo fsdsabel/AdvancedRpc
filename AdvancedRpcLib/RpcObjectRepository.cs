@@ -47,21 +47,24 @@ namespace AdvancedRpcLib
                 Purge();
                 foreach (var obj in _rpcObjects)
                 {
-                    if (CreateTypeId(obj.Value.InterfaceType) == typeId)
+                    foreach (var intf in obj.Value.InterfaceTypes)
                     {
-                        return obj.Value;
+                        if (CreateTypeId(intf) == typeId)
+                        {
+                            return obj.Value;
+                        }
                     }
                 }
             }
             return null;
         }
 
-        public void RegisterSingleton<T>(object singleton)
+        public void RegisterSingleton(object singleton)
         {
             lock (_rpcObjects)
             {
                 Purge();
-                var v = new RpcObjectHandle(typeof(T), singleton, true);
+                var v = new RpcObjectHandle(singleton, true);
                 _rpcObjects.Add(v, v);
             }
         }
@@ -81,7 +84,7 @@ namespace AdvancedRpcLib
                 });
                 if (existing.Key == null)
                 {
-                    var v = new RpcObjectHandle(interfaceType, instance);
+                    var v = new RpcObjectHandle(instance);
                     _rpcObjects.Add(v, v);
                     return v;
                 }
@@ -131,7 +134,7 @@ namespace AdvancedRpcLib
                         return inst;
                     }
                 }
-                var result = new RpcObjectHandle(interfaceType, null);
+                var result = new RpcObjectHandle(null);
                 _rpcObjects.Add(result, result);
                 var instance = ImplementInterface(interfaceType, channel, remoteInstanceId, result.InstanceId);
                 result.Object = new WeakReference<object>(instance);
@@ -181,10 +184,14 @@ namespace AdvancedRpcLib
             dil.EmitCall(OpCodes.Callvirt, typeof(IRpcChannel).GetMethod(nameof(IRpcChannel.RemoveInstance)), null);
             dil.Emit(OpCodes.Ret);
 
+            var allInterfaces = interfaceType.GetInterfaces().Concat(new[] { interfaceType });
 
-            foreach (var method in interfaceType.GetMethods())
+            foreach (var intf in allInterfaces)
             {
-                ImplementMethod(tb, method, invokerField, remoteInstanceId);
+                foreach (var method in intf.GetMethods())
+                {
+                    ImplementMethod(tb, method, invokerField, remoteInstanceId);
+                }
             }
 
             

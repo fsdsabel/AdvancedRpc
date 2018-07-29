@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Threading.Tasks;
 using AdvancedRpcLib.Channels.Tcp;
@@ -20,7 +21,7 @@ namespace AdvancedRpcLib.Tests
                 new RpcMessageFactory(),
                 IPAddress.Loopback,
                 11234);
-            server.ObjectRepository.RegisterSingleton<T>(instance);
+            server.ObjectRepository.RegisterSingleton(instance);
             await server.ListenAsync();
 
 
@@ -33,6 +34,7 @@ namespace AdvancedRpcLib.Tests
             await client.ConnectAsync();
             return await client.GetServerObjectAsync<T>();
         }
+
 
 
         [TestCleanup]
@@ -48,8 +50,23 @@ namespace AdvancedRpcLib.Tests
         public async Task SimpleCallSucceeds()
         {
             var o = new TestObject();
-            (await Init<ITestObject>(o)).CallMe();
+            var co = await Init<ITestObject2>(o);
+            co.CallMe();
+            Assert.AreEqual("callme2", co.CallMe2());
+            Assert.IsTrue(o.WasCalled);
+        }
 
+        [TestMethod]
+        public async Task CallsSameObjectWithDifferentInterfacesSucceeds()
+        {
+            var o = new TestObject();
+            var co = await Init<ITestObject>(o);
+            var co2 = await _clientChannel.GetServerObjectAsync<ITestObject2>();
+            co.CallMe();
+            Assert.IsTrue(o.WasCalled);
+            Assert.IsTrue(co2.WasCalled);
+            o.WasCalled = false;
+            co2.CallMe();
             Assert.IsTrue(o.WasCalled);
         }
 
@@ -119,8 +136,78 @@ namespace AdvancedRpcLib.Tests
         }
 
 
+        [TestMethod]
+        public async Task HeavyMultithreadingWorks()
+        {
+            var proxy = await Init<ITestObject>(new TestObject());
+            var threads = new List<Task<bool>>();
+            for (int i = 0; i < 10; i++)
+            {
+                int mi = i;
+                threads.Add(new Task<bool>(delegate
+                {
+                    for (int j = 0; j < 100; j++)
+                    {
+                        if (proxy.SimpleCalc(mi * 100, j) != mi * 100 + j)
+                        {
+                            return false;
+                        }
+                    }
+                    return true;
+                }));
+            }
+
+            foreach (var t in threads) t.Start();
+
+            Assert.IsTrue(Task.WaitAll(threads.ToArray(), 20000));
+            Assert.IsTrue(threads.TrueForAll(t => t.Result));
+        }
+
+        [TestMethod]
+        public async Task MultipleClientsWork()
+        {
+            var proxy = await Init<ITestObject>(new TestObject());
+            var client2 = new TcpRpcClientChannel(
+                new JsonRpcSerializer(),
+                new RpcMessageFactory(),
+                IPAddress.Loopback,
+                11234);
+
+            await client2.ConnectAsync();
+            var proxy2 = await client2.GetServerObjectAsync<ITestObject>();
+
+
+
+            var threads = new List<Task<bool>>();
+            for (int i = 0; i < 10; i++)
+            {
+                int mi = i;
+                threads.Add(new Task<bool>(delegate
+                {
+                    ITestObject pr = mi % 2 == 0 ? proxy : proxy2;
+
+                    for (int j = 0; j < 100; j++)
+                    {
+                        if (pr.SimpleCalc(mi * 100, j) != mi * 100 + j)
+                        {
+                            return false;
+                        }
+                    }
+                    return true;
+                }));
+            }
+
+            foreach (var t in threads) t.Start();
+
+            Assert.IsTrue(Task.WaitAll(threads.ToArray(), 20000));
+            Assert.IsTrue(threads.TrueForAll(t => t.Result));
+        }
+
+
         public interface ITestObject
         {
+            bool WasCalled { get; set; }
+
             string Property { get; set; }
 
             string SimpleStringResult();
@@ -144,9 +231,14 @@ namespace AdvancedRpcLib.Tests
             public string Name { get; set; }
         }
 
-        class TestObject : ITestObject
+        public interface ITestObject2 : ITestObject
         {
-            public bool WasCalled;
+            string CallMe2();
+        }
+
+        class TestObject : ITestObject2
+        {
+            public bool WasCalled { get; set; }
 
 
             public string Property { get; set; } = "Test";
@@ -176,6 +268,10 @@ namespace AdvancedRpcLib.Tests
                 return new SubObject { Name = name };
             }
 
+            public string CallMe2()
+            {
+                return "callme2";
+            }
         }
     }
 }

@@ -17,7 +17,7 @@ namespace AdvancedRpcLib.Channels.Tcp
         private readonly IRpcMessageFactory _messageFactory;
         private readonly IRpcSerializer _serializer;
         private readonly IRpcObjectRepository _remoteRepository, _localRepository;
-
+        
 
         public TcpRpcClientChannel(            
             IRpcSerializer serializer,
@@ -41,7 +41,7 @@ namespace AdvancedRpcLib.Channels.Tcp
         {
             _tcpClient = new TcpClient();
             await _tcpClient.ConnectAsync(_address, _port);
-            RunReaderLoop(_tcpClient.GetStream());
+            RunReaderLoop(_tcpClient);
         }
 
         public async Task<TResult> GetServerObjectAsync<TResult>()
@@ -81,7 +81,7 @@ namespace AdvancedRpcLib.Channels.Tcp
         {
             var msg = msgFunc();
             var serializedMsg = _serializer.SerializeMessage(msg);
-            return SendMessageAsync<T>(_tcpClient.GetStream(), _serializer, serializedMsg, msg.CallId);
+            return SendMessageAsync<T>(_tcpClient, _serializer, serializedMsg, msg.CallId);
         }
 
         public void RemoveInstance(int localInstanceId, int remoteInstanceId)
