@@ -76,7 +76,7 @@ namespace AdvancedRpcLib
     }
 
 
-    enum TcpRpcChannelMessageType
+    enum RpcChannelMessageType
     {
         Message = 0,
         LargeMessage = 1,

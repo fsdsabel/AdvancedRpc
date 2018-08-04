@@ -1,32 +1,56 @@
 ﻿using Newtonsoft.Json;
 using Nito.AsyncEx;
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace AdvancedRpcLib.Channels.Tcp
+namespace AdvancedRpcLib.Channels
 {
-
-
-    public abstract class TcpRpcChannel 
+    public interface ITransportChannel : IDisposable
     {
-        private readonly Dictionary<TcpClient, AsyncNotification> _messageNotifications = new Dictionary<TcpClient, AsyncNotification>();
+        Stream GetStream();
+    }
+
+    public abstract class RpcChannel<TChannel> where TChannel:ITransportChannel
+    {
+        class RpcChannelWrapper : IRpcChannel
+        {
+            private readonly RpcChannel<TChannel> _rpcChannel;
+            private readonly TChannel _channel;
+
+            public RpcChannelWrapper(RpcChannel<TChannel> rpcChannel, TChannel channel)
+            {
+                _rpcChannel = rpcChannel;
+                _channel = channel;
+            }
+
+
+            public object CallRpcMethod(int instanceId, string methodName, Type[] argTypes, object[] args, Type resultType)
+            {
+                return _rpcChannel.CallRpcMethod(_channel, instanceId, methodName, argTypes, args, resultType);
+            }
+
+            public void RemoveInstance(int localInstanceId, int remoteInstanceId)
+            {
+                _rpcChannel.RemoveInstance(_channel, localInstanceId, remoteInstanceId);
+            }
+        }
+
+        private readonly Dictionary<TChannel, AsyncNotification> _messageNotifications = new Dictionary<TChannel, AsyncNotification>();
         private readonly object _sendLock = new object();
         protected readonly IRpcSerializer _serializer;
         protected readonly IRpcObjectRepository _localRepository;
         private readonly Func<IRpcObjectRepository> _remoteRepository;
-        private readonly Dictionary<TcpClient, IRpcObjectRepository> _remoteRepositories = new Dictionary<TcpClient, IRpcObjectRepository>();
+        private readonly Dictionary<TChannel, IRpcObjectRepository> _remoteRepositories = new Dictionary<TChannel, IRpcObjectRepository>();
         protected readonly IRpcMessageFactory _messageFactory;
 
-        protected TcpRpcChannel(IRpcSerializer serializer,
-            IRpcMessageFactory messageFactory,
-            IRpcObjectRepository localRepository = null,
-            Func<IRpcObjectRepository> remoteRepository = null)
+        protected RpcChannel(IRpcSerializer serializer,
+           IRpcMessageFactory messageFactory,
+           IRpcObjectRepository localRepository = null,
+           Func<IRpcObjectRepository> remoteRepository = null)
         {
             _messageFactory = messageFactory;
             _serializer = serializer;
@@ -34,25 +58,25 @@ namespace AdvancedRpcLib.Channels.Tcp
             _localRepository = localRepository ?? new RpcObjectRepository();
         }
 
-        protected IRpcObjectRepository GetRemoteRepository(TcpClient tcpClient)
+        protected IRpcObjectRepository GetRemoteRepository(TChannel channel)
         {
-            lock(_remoteRepositories)
+            lock (_remoteRepositories)
             {
-                if(!_remoteRepositories.ContainsKey(tcpClient))
+                if (!_remoteRepositories.ContainsKey(channel))
                 {
-                    _remoteRepositories.Add(tcpClient, _remoteRepository());
+                    _remoteRepositories.Add(channel, _remoteRepository());
                 }
-                return _remoteRepositories[tcpClient];
+                return _remoteRepositories[channel];
             }
         }
 
-        protected Task<TResult> SendMessageAsync<TResult>(TcpClient client, byte[] msg, int callId)
-                where TResult : RpcMessage
+        protected Task<TResult> SendMessageAsync<TResult>(TChannel channel, byte[] msg, int callId)
+               where TResult : RpcMessage
         {
-            var waitTask = WaitForMessageResultAsync<TResult>(client, _serializer, callId);
+            var waitTask = WaitForMessageResultAsync<TResult>(channel, _serializer, callId);
             lock (_sendLock)
             {
-                SendMessage(client.GetStream(), msg);
+                SendMessage(channel.GetStream(), msg);
             }
             return waitTask;
         }
@@ -65,12 +89,12 @@ namespace AdvancedRpcLib.Channels.Tcp
                 {
                     if (msg.Length <= ushort.MaxValue)
                     {
-                        writer.Write((byte)TcpRpcChannelMessageType.Message);
+                        writer.Write((byte)RpcChannelMessageType.Message);
                         writer.Write((ushort)msg.Length);
                     }
                     else
                     {
-                        writer.Write((byte)TcpRpcChannelMessageType.LargeMessage);
+                        writer.Write((byte)RpcChannelMessageType.LargeMessage);
                         writer.Write(msg.Length);
                     }
                     writer.Write(msg);
@@ -78,24 +102,24 @@ namespace AdvancedRpcLib.Channels.Tcp
             }
         }
 
-        protected Task<T> SendMessageAsync<T>(TcpClient tcpClient, Func<RpcMessage> msgFunc) where T : RpcMessage
+        protected Task<T> SendMessageAsync<T>(TChannel channel, Func<RpcMessage> msgFunc) where T : RpcMessage
         {
             var msg = msgFunc();
             var serializedMsg = _serializer.SerializeMessage(msg);
-            return SendMessageAsync<T>(tcpClient, serializedMsg, msg.CallId);
+            return SendMessageAsync<T>(channel, serializedMsg, msg.CallId);
         }
 
-        protected object CallRpcMethod(TcpClient tcpClient, 
+        protected object CallRpcMethod(TChannel channel,
             int instanceId, string methodName, Type[] argTypes, object[] args, Type resultType)
         {
             try
             {
-                var response = SendMessageAsync<RpcCallResultMessage>(tcpClient, () => _messageFactory.CreateMethodCallMessage(_localRepository, instanceId, methodName, argTypes, args))
+                var response = SendMessageAsync<RpcCallResultMessage>(channel, () => _messageFactory.CreateMethodCallMessage(_localRepository, instanceId, methodName, argTypes, args))
                     .GetAwaiter().GetResult();
 
                 if (response.ResultType == RpcType.Proxy)
                 {
-                    return GetRemoteRepository(tcpClient).GetProxyObject(GetRpcChannelForClient(tcpClient), resultType, Convert.ToInt32(response.Result));
+                    return GetRemoteRepository(channel).GetProxyObject(GetRpcChannelForClient(channel), resultType, Convert.ToInt32(response.Result));
                 }
 
                 return response.Result;
@@ -106,12 +130,12 @@ namespace AdvancedRpcLib.Channels.Tcp
             }
         }
 
-        public void RemoveInstance(TcpClient tcpClient, int localInstanceId, int remoteInstanceId)
+        public void RemoveInstance(TChannel channel, int localInstanceId, int remoteInstanceId)
         {
             try
             {
-                GetRemoteRepository(tcpClient).RemoveInstance(localInstanceId);
-                SendMessageAsync<RpcMessage>(tcpClient, () => _messageFactory.CreateRemoveInstanceMessage(remoteInstanceId)).GetAwaiter().GetResult();
+                GetRemoteRepository(channel).RemoveInstance(localInstanceId);
+                SendMessageAsync<RpcMessage>(channel, () => _messageFactory.CreateRemoveInstanceMessage(remoteInstanceId)).GetAwaiter().GetResult();
             }
             catch
             {
@@ -119,12 +143,12 @@ namespace AdvancedRpcLib.Channels.Tcp
             }
         }
 
-        private async Task<TResult> WaitForMessageResultAsync<TResult>(TcpClient client, IRpcSerializer serializer, int callId)
+        private async Task<TResult> WaitForMessageResultAsync<TResult>(TChannel channel, IRpcSerializer serializer, int callId)
             where TResult : RpcMessage
         {
             var re = new AsyncManualResetEvent(false);
             TResult result = default;
-            RegisterMessageCallback(client, (data) =>
+            RegisterMessageCallback(channel, (data) =>
             {
                 var bareMsg = serializer.DeserializeMessage<RpcMessage>(data);
                 if (bareMsg.CallId == callId)
@@ -140,51 +164,27 @@ namespace AdvancedRpcLib.Channels.Tcp
             return result;
         }
 
-        protected private void RegisterMessageCallback(TcpClient client, AsyncNotification.DataReceivedDelegate callback, bool autoremove)
+        protected private void RegisterMessageCallback(TChannel channel, AsyncNotification.DataReceivedDelegate callback, bool autoremove)
         {
-            lock(_messageNotifications)
+            lock (_messageNotifications)
             {
-                if(!_messageNotifications.ContainsKey(client))
+                if (!_messageNotifications.ContainsKey(channel))
                 {
-                    _messageNotifications.Add(client, new AsyncNotification());
+                    _messageNotifications.Add(channel, new AsyncNotification());
                 }
-                _messageNotifications[client].Register(callback, autoremove);
+                _messageNotifications[channel].Register(callback, autoremove);
             }
-         
         }
 
-        class RpcChannelWrapper : IRpcChannel
+        protected IRpcChannel GetRpcChannelForClient(TChannel channel)
         {
-            private readonly TcpRpcChannel _tcpChannel;
-            private readonly TcpClient _client;
-
-            public RpcChannelWrapper(TcpRpcChannel tcpChannel, TcpClient client)
-            {
-                _tcpChannel = tcpChannel;
-                _client = client;
-            }
-
-
-            public object CallRpcMethod(int instanceId, string methodName, Type[] argTypes, object[] args, Type resultType)
-            {
-                return _tcpChannel.CallRpcMethod(_client, instanceId, methodName, argTypes, args, resultType);
-            }
-
-            public void RemoveInstance(int localInstanceId, int remoteInstanceId)
-            {
-                _tcpChannel.RemoveInstance(_client, localInstanceId, remoteInstanceId);
-            }
+            return new RpcChannelWrapper(this, channel);
         }
 
-        protected IRpcChannel GetRpcChannelForClient(TcpClient client)
-        {
-            return new RpcChannelWrapper(this, client); 
-        }
-
-        protected bool HandleRemoteMessage(TcpClient client, ReadOnlySpan<byte> data, RpcMessage msg)
+        protected bool HandleRemoteMessage(TChannel channel, ReadOnlySpan<byte> data, RpcMessage msg)
         {
             switch (msg.Type)
-            {               
+            {
                 case RpcMessageType.CallMethod:
                     {
                         var m = _serializer.DeserializeMessage<RpcMethodCallMessage>(data);
@@ -201,11 +201,11 @@ namespace AdvancedRpcLib.Channels.Tcp
                                     args[i] = Convert.ChangeType(m.Arguments[i].Value, targetParameterTypes[i]);
                                     break;
                                 case RpcType.Proxy:
-                                    args[i] = GetRemoteRepository(client).GetProxyObject(GetRpcChannelForClient(client),
+                                    args[i] = GetRemoteRepository(channel).GetProxyObject(GetRpcChannelForClient(channel),
                                                     targetParameterTypes[i], (int)Convert.ChangeType(m.Arguments[i].Value, typeof(int)));
                                     break;
                                 case RpcType.Serialized:
-                                    var type = Type.GetType(m.Arguments[i].TypeId);                                    
+                                    var type = Type.GetType(m.Arguments[i].TypeId);
                                     args[i] = JsonConvert.DeserializeObject(JsonConvert.SerializeObject(m.Arguments[i].Value), type);
                                     break;
                                 default:
@@ -232,7 +232,7 @@ namespace AdvancedRpcLib.Channels.Tcp
 
 
                         var response = _serializer.SerializeMessage(resultMessage);
-                        SendMessage(client.GetStream(), response);
+                        SendMessage(channel.GetStream(), response);
                         return true;
                     }
                 case RpcMessageType.RemoveInstance:
@@ -245,14 +245,14 @@ namespace AdvancedRpcLib.Channels.Tcp
                             CallId = m.CallId,
                             Type = RpcMessageType.Ok
                         });
-                        SendMessage(client.GetStream(), response);
+                        SendMessage(channel.GetStream(), response);
                         return true;
                     }
             }
             return false;
         }
 
-        protected void RunReaderLoop(TcpClient client)
+        protected void RunReaderLoop(TChannel channel)
         {
             void NotifyMessage(byte[] data)
             {
@@ -261,7 +261,7 @@ namespace AdvancedRpcLib.Channels.Tcp
                     try
                     {
                         //smallMessageBuffer
-                        if (!_messageNotifications[client].Notify(new ReadOnlySpan<byte>(data)))
+                        if (!_messageNotifications[channel].Notify(new ReadOnlySpan<byte>(data)))
                         {
                             Console.WriteLine("Failed to process message");
                         }
@@ -276,24 +276,24 @@ namespace AdvancedRpcLib.Channels.Tcp
 
             Task.Run(delegate
             {
-                var reader = new BinaryReader(client.GetStream(), Encoding.UTF8, true);
+                var reader = new BinaryReader(channel.GetStream(), Encoding.UTF8, true);
                 var smallMessageBuffer = new byte[ushort.MaxValue];
 
 
 
                 while (true)
                 {
-                    var type = (TcpRpcChannelMessageType)reader.ReadByte();
+                    var type = (RpcChannelMessageType)reader.ReadByte();
                     switch (type)
                     {
-                        case TcpRpcChannelMessageType.LargeMessage:
+                        case RpcChannelMessageType.LargeMessage:
                             {
                                 var msgLen = reader.ReadInt32();
                                 var data = reader.ReadBytes(msgLen);
                                 NotifyMessage(data);
                                 break;
                             }
-                        case TcpRpcChannelMessageType.Message:
+                        case RpcChannelMessageType.Message:
                             {
                                 var msgLen = reader.ReadUInt16();
                                 int offset = 0;
@@ -315,8 +315,5 @@ namespace AdvancedRpcLib.Channels.Tcp
                 }
             });
         }
-
-
     }
-
 }

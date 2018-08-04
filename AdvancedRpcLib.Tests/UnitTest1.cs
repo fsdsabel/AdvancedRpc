@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Net;
 using System.Threading.Tasks;
+using AdvancedRpcLib.Channels.NamedPipe;
 using AdvancedRpcLib.Channels.Tcp;
 using AdvancedRpcLib.Serializers;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -11,28 +12,64 @@ namespace AdvancedRpcLib.Tests
     [TestClass]
     public class UnitTest1
     {
-        private TcpRpcServerChannel _serverChannel;
-        private TcpRpcClientChannel _clientChannel;
+        private IRpcServerChannel _serverChannel;
+        private IRpcClientChannel _clientChannel;
+        private string _pipeName;
 
-        private async Task<T> Init<T>(T instance)
-        {   
-            var server = _serverChannel = new TcpRpcServerChannel(                
-                new JsonRpcSerializer(),
-                new RpcMessageFactory(),
-                IPAddress.Loopback,
-                11234);
-            server.ObjectRepository.RegisterSingleton(instance);
-            await server.ListenAsync();
+        public enum ChannelType
+        {
+            Tcp,
+            NamedPipe
+        }
+
+        private async Task<T> Init<T>(T instance, ChannelType type)
+        {
+            switch (type)
+            {
+                case ChannelType.Tcp:
+                    {
+                        var server = _serverChannel = new TcpRpcServerChannel(
+                            new JsonRpcSerializer(),
+                            new RpcMessageFactory(),
+                            IPAddress.Loopback,
+                            11234);
+                        server.ObjectRepository.RegisterSingleton(instance);
+                        await server.ListenAsync();
 
 
-            var client = _clientChannel = new TcpRpcClientChannel(                
-                new JsonRpcSerializer(),
-                new RpcMessageFactory(),
-                IPAddress.Loopback,
-                11234);
+                        var client = _clientChannel = new TcpRpcClientChannel(
+                            new JsonRpcSerializer(),
+                            new RpcMessageFactory(),
+                            IPAddress.Loopback,
+                            11234);
 
-            await client.ConnectAsync();
-            return await client.GetServerObjectAsync<T>();
+                        await client.ConnectAsync();
+                        return await client.GetServerObjectAsync<T>();
+                    }
+                case ChannelType.NamedPipe:
+                    {
+                        _pipeName = Guid.NewGuid().ToString();
+                        var server = _serverChannel = new NamedPipeRpcServerChannel(
+                            new JsonRpcSerializer(),
+                            new RpcMessageFactory(),
+                            _pipeName);
+                        server.ObjectRepository.RegisterSingleton(instance);
+                        await server.ListenAsync();
+
+
+                        var client = _clientChannel = new NamedPipeRpcClientChannel(
+                            new JsonRpcSerializer(),
+                            new RpcMessageFactory(),
+                            _pipeName);
+
+                        await client.ConnectAsync();
+                        return await client.GetServerObjectAsync<T>();
+                    }
+                default:
+                    throw new NotSupportedException();
+            }
+
+
         }
 
 
@@ -40,27 +77,31 @@ namespace AdvancedRpcLib.Tests
         [TestCleanup]
         public void TestCleanup()
         {
-            _serverChannel?.Dispose();
-            _clientChannel?.Dispose();
+            (_serverChannel as IDisposable)?.Dispose();
+            (_clientChannel as IDisposable)?.Dispose();
             _serverChannel = null;
             _clientChannel = null;
         }
 
-        [TestMethod]
-        public async Task SimpleCallSucceeds()
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
+        public async Task SimpleCallSucceeds(ChannelType type)
         {
             var o = new TestObject();
-            var co = await Init<ITestObject2>(o);
+            var co = await Init<ITestObject2>(o, type);
             co.CallMe();
             Assert.AreEqual("callme2", co.CallMe2());
             Assert.IsTrue(o.WasCalled);
         }
 
-        [TestMethod]
-        public async Task CallsSameObjectWithDifferentInterfacesSucceeds()
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
+        public async Task CallsSameObjectWithDifferentInterfacesSucceeds(ChannelType type)
         {
             var o = new TestObject();
-            var co = await Init<ITestObject>(o);
+            var co = await Init<ITestObject>(o, type);
             var co2 = await _clientChannel.GetServerObjectAsync<ITestObject2>();
             co.CallMe();
             Assert.IsTrue(o.WasCalled);
@@ -70,72 +111,90 @@ namespace AdvancedRpcLib.Tests
             Assert.IsTrue(o.WasCalled);
         }
 
-        [TestMethod]
-        public async Task CallWithStringResultSucceeds()
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
+        public async Task CallWithStringResultSucceeds(ChannelType type)
         {
             var o = new TestObject();
-            Assert.AreEqual("dummy", (await Init<ITestObject>(o)).SimpleStringResult());
+            Assert.AreEqual("dummy", (await Init<ITestObject>(o, type)).SimpleStringResult());
         }
 
-        [TestMethod]
-        public async Task CallWithIntsSucceeds()
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
+        public async Task CallWithIntsSucceeds(ChannelType type)
         {
             var o = new TestObject();
-            Assert.AreEqual(42, (await Init<ITestObject>(o)).SimpleCalc(40, 2));
+            Assert.AreEqual(42, (await Init<ITestObject>(o, type)).SimpleCalc(40, 2));
         }
 
-        [TestMethod]
-        public async Task CallWithStringsSucceeds()
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
+        public async Task CallWithStringsSucceeds(ChannelType type)
         {
             var o = new TestObject();
-            Assert.AreEqual("42", (await Init<ITestObject>(o)).SimpleStringConcat("4", "2"));
+            Assert.AreEqual("42", (await Init<ITestObject>(o, type)).SimpleStringConcat("4", "2"));
         }
 
 
-        [TestMethod]
-        public async Task PropertyGetSucceeds()
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
+        public async Task PropertyGetSucceeds(ChannelType type)
         {
             var o = new TestObject();
-            Assert.AreEqual("Test", (await Init<ITestObject>(o)).Property);
+            Assert.AreEqual("Test", (await Init<ITestObject>(o, type)).Property);
         }
 
-        [TestMethod]
-        public async Task CallWithObjectResultSucceeds()
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
+        public async Task CallWithObjectResultSucceeds(ChannelType type)
         {
             var o = new TestObject();
-            var result = (await Init<ITestObject>(o)).GetSubObject("a name");
+            var result = (await Init<ITestObject>(o, type)).GetSubObject("a name");
             Assert.AreEqual("a name", result.Name);
         }
 
-        [TestMethod]
-        public async Task SendAndReceiveNullSucceeds()
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
+        public async Task SendAndReceiveNullSucceeds(ChannelType type)
         {
             var o = new TestObject();
-            Assert.IsNull((await Init<ITestObject>(o)).Reflect(null));
+            Assert.IsNull((await Init<ITestObject>(o, type)).Reflect(null));
         }
 
-        [TestMethod]
-        public async Task ObjectParameterSucceeds()
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
+        public async Task ObjectParameterSucceeds(ChannelType type)
         {
             var o = new TestObject();
-            Assert.AreEqual("test", (await Init<ITestObject>(o)).SetNameFromSubObject(new SubObject { Name = "test" }).Name);
+            Assert.AreEqual("test", (await Init<ITestObject>(o, type)).SetNameFromSubObject(new SubObject { Name = "test" }).Name);
         }
 
 
-        [TestMethod, ExpectedException(typeof(RpcFailedException))]
-        public async Task CallWithNonExistingServerFails()
+        [DataTestMethod, ExpectedException(typeof(RpcFailedException))]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
+        public async Task CallWithNonExistingServerFails(ChannelType type)
         {
-            var proxy = await Init<ITestObject>(new TestObject());
-            _serverChannel.Dispose();
+            var proxy = await Init<ITestObject>(new TestObject(), type);
+            (_serverChannel as IDisposable).Dispose();
             proxy.CallMe();
         }
 
-        [TestMethod]
-        public async Task EventHandlersWork()
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
+        public async Task EventHandlersWork(ChannelType type)
         {
             bool eventHandlerCalled = false;
             var o = new TestObject();
-            var proxy = await Init<ITestObject>(o);
+            var proxy = await Init<ITestObject>(o, type);
             proxy.TestEvent += (s, e) =>
             {
                 eventHandlerCalled = true;
@@ -149,10 +208,12 @@ namespace AdvancedRpcLib.Tests
             Assert.IsTrue(eventHandlerCalled);
         }
 
-        [TestMethod]
-        public void ClientDestructorCalled()
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
+        public void ClientDestructorCalled(ChannelType type)
         {
-            InitPrivate();
+            InitPrivate(type);
             Assert.IsNotNull(_clientChannel.ObjectRepository.GetObject(_serverChannel.ObjectRepository.CreateTypeId<ITestObject>()));
 
             GC.Collect();
@@ -163,25 +224,29 @@ namespace AdvancedRpcLib.Tests
             Assert.IsNotNull(_serverChannel.ObjectRepository.GetObject(_serverChannel.ObjectRepository.CreateTypeId<ITestObject>()));
         }
 
-        [TestMethod]
-        public async Task CallWithLargeObjectsSucceeds()
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
+        public async Task CallWithLargeObjectsSucceeds(ChannelType type)
         {
             var o = new TestObject();
             var largeString = "".PadLeft(1024 * 1024 * 20, 'A');
-            Assert.AreEqual(largeString, (await Init<ITestObject>(o)).Reflect(largeString));
+            Assert.AreEqual(largeString, (await Init<ITestObject>(o, type)).Reflect(largeString));
         }
 
-        private void InitPrivate()
+        private void InitPrivate(ChannelType type)
         {
             // make sure to not keep a reference to ITestObject .. if we use Task await we will keep one
-            Init<ITestObject>(new TestObject()).GetAwaiter().GetResult();
+            Init<ITestObject>(new TestObject(), type).GetAwaiter().GetResult();
         }
 
 
-        [TestMethod]
-        public async Task HeavyMultithreadingWorks()
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
+        public async Task HeavyMultithreadingWorks(ChannelType type)
         {
-            var proxy = await Init<ITestObject>(new TestObject());
+            var proxy = await Init<ITestObject>(new TestObject(), type);
             var threads = new List<Task<bool>>();
             for (int i = 0; i < 10; i++)
             {
@@ -205,18 +270,37 @@ namespace AdvancedRpcLib.Tests
             Assert.IsTrue(threads.TrueForAll(t => t.Result));
         }
 
-        [TestMethod]
-        public async Task MultipleClientsWork()
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
+        public async Task MultipleClientsWork(ChannelType type)
         {
-            var proxy = await Init<ITestObject>(new TestObject());
-            var client2 = new TcpRpcClientChannel(
-                new JsonRpcSerializer(),
-                new RpcMessageFactory(),
-                IPAddress.Loopback,
-                11234);
+            var proxy = await Init<ITestObject>(new TestObject(), type);
+            ITestObject proxy2 = null;
 
-            await client2.ConnectAsync();
-            var proxy2 = await client2.GetServerObjectAsync<ITestObject>();
+            if (type == ChannelType.Tcp)
+            {
+                var client2 = new TcpRpcClientChannel(
+                    new JsonRpcSerializer(),
+                    new RpcMessageFactory(),
+                    IPAddress.Loopback,
+                    11234);
+
+                await client2.ConnectAsync();
+                proxy2 = await client2.GetServerObjectAsync<ITestObject>();
+            } else if(type == ChannelType.NamedPipe)
+            {
+                var client2 = new NamedPipeRpcClientChannel(
+                    new JsonRpcSerializer(),
+                    new RpcMessageFactory(),
+                   _pipeName);
+
+                await client2.ConnectAsync();
+                proxy2 = await client2.GetServerObjectAsync<ITestObject>();
+            }
+
+            
+            
 
 
 
