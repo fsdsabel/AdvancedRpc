@@ -162,7 +162,15 @@ namespace AdvancedRpcLib.Tests
             Assert.IsNull(_clientChannel.ObjectRepository.GetObject(_serverChannel.ObjectRepository.CreateTypeId<ITestObject>()));
             Assert.IsNotNull(_serverChannel.ObjectRepository.GetObject(_serverChannel.ObjectRepository.CreateTypeId<ITestObject>()));
         }
-        
+
+        [TestMethod]
+        public async Task CallWithLargeObjectsSucceeds()
+        {
+            var o = new TestObject();
+            var largeString = "".PadLeft(1024 * 1024 * 20, 'A');
+            Assert.AreEqual(largeString, (await Init<ITestObject>(o)).Reflect(largeString));
+        }
+
         private void InitPrivate()
         {
             // make sure to not keep a reference to ITestObject .. if we use Task await we will keep one

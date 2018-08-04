@@ -52,13 +52,7 @@ namespace AdvancedRpcLib.Channels.Tcp
             var waitTask = WaitForMessageResultAsync<TResult>(client, _serializer, callId);
             lock (_sendLock)
             {
-                using (var writer = new BinaryWriter(client.GetStream(), Encoding.UTF8, true))
-                {
-                    //TODO: longer messages > 64k, maybe with other messagetype
-                    writer.Write((byte)TcpRpcChannelMessageType.Message);
-                    writer.Write((ushort)msg.Length);
-                    writer.Write(msg);
-                }
+                SendMessage(client.GetStream(), msg);
             }
             return waitTask;
         }
@@ -69,9 +63,16 @@ namespace AdvancedRpcLib.Channels.Tcp
             {
                 using (var writer = new BinaryWriter(stream, Encoding.UTF8, true))
                 {
-                    //TODO: longer messages > 64k, maybe with other messagetype
-                    writer.Write((byte)TcpRpcChannelMessageType.Message);
-                    writer.Write((ushort)msg.Length);
+                    if (msg.Length <= ushort.MaxValue)
+                    {
+                        writer.Write((byte)TcpRpcChannelMessageType.Message);
+                        writer.Write((ushort)msg.Length);
+                    }
+                    else
+                    {
+                        writer.Write((byte)TcpRpcChannelMessageType.LargeMessage);
+                        writer.Write(msg.Length);
+                    }
                     writer.Write(msg);
                 }
             }
@@ -253,6 +254,26 @@ namespace AdvancedRpcLib.Channels.Tcp
 
         protected void RunReaderLoop(TcpClient client)
         {
+            void NotifyMessage(byte[] data)
+            {
+                Task.Run(delegate
+                {
+                    try
+                    {
+                        //smallMessageBuffer
+                        if (!_messageNotifications[client].Notify(new ReadOnlySpan<byte>(data)))
+                        {
+                            Console.WriteLine("Failed to process message");
+                        }
+
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine("Failed to run remote message");
+                    }
+                });
+            }
+
             Task.Run(delegate
             {
                 var reader = new BinaryReader(client.GetStream(), Encoding.UTF8, true);
@@ -265,37 +286,29 @@ namespace AdvancedRpcLib.Channels.Tcp
                     var type = (TcpRpcChannelMessageType)reader.ReadByte();
                     switch (type)
                     {
-                        case TcpRpcChannelMessageType.Message:
-                            var msgLen = reader.ReadUInt16();
-                            int offset = 0;
-                            while (offset < msgLen)
+                        case TcpRpcChannelMessageType.LargeMessage:
                             {
-                                offset += reader.Read(smallMessageBuffer, offset, msgLen - offset);
+                                var msgLen = reader.ReadInt32();
+                                var data = reader.ReadBytes(msgLen);
+                                NotifyMessage(data);
+                                break;
                             }
-
-                            var copy = new byte[msgLen];
-                            Array.Copy(smallMessageBuffer, copy, msgLen);
-
-
-                            Task.Run(delegate
+                        case TcpRpcChannelMessageType.Message:
                             {
-                                try
+                                var msgLen = reader.ReadUInt16();
+                                int offset = 0;
+                                while (offset < msgLen)
                                 {
-                                    //smallMessageBuffer
-                                    if (!_messageNotifications[client].Notify(new ReadOnlySpan<byte>(copy)))
-                                    {
-                                        Console.WriteLine("Failed to process message");
-                                    }
-
+                                    offset += reader.Read(smallMessageBuffer, offset, msgLen - offset);
                                 }
-                                catch (Exception ex)
-                                {
-                                    Console.WriteLine("Failed to run remote message");
-                                }
-                            });
-                            
-                            break;
 
+                                var copy = new byte[msgLen];
+                                Array.Copy(smallMessageBuffer, copy, msgLen);
+
+                                NotifyMessage(copy);
+
+                                break;
+                            }
                         default:
                             throw new NotSupportedException("Invalid message type encountered");
                     }

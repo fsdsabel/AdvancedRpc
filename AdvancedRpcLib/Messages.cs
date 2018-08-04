@@ -79,7 +79,8 @@ namespace AdvancedRpcLib
     enum TcpRpcChannelMessageType
     {
         Message = 0,
-        Ping = 1,
-        Pong = 2
+        LargeMessage = 1,
+        Ping = 2,
+        Pong = 3
     }
 }
