@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.27703.2035
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30011.22
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AdvancedRpc", "AdvancedRpc\AdvancedRpc.csproj", "{490BB6E5-18C2-4FBF-B073-FA8EFCEB12C9}"
 EndProject
@@ -9,12 +9,12 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AdvancedRpcLib", "AdvancedR
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestServer", "TestServer\TestServer.csproj", "{134E1C6F-DE16-4C7C-AB02-3DAF83A4CF39}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AdvancedRpcLib.Tests", "AdvancedRpcLib.Tests\AdvancedRpcLib.Tests.csproj", "{62887BED-8F0F-4152-89EC-D69C90E89438}"
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Readme", "Readme", "{A3BFCD73-016A-4380-A524-22AC310FB5F3}"
 	ProjectSection(SolutionItems) = preProject
 		Todo.txt = Todo.txt
 	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AdvancedRpcLib.UnitTests", "AdvancedRpcLib.UnitTests\AdvancedRpcLib.UnitTests.csproj", "{23E816ED-4553-48CE-9439-B23A2DAD153E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -34,10 +34,10 @@ Global
 		{134E1C6F-DE16-4C7C-AB02-3DAF83A4CF39}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{134E1C6F-DE16-4C7C-AB02-3DAF83A4CF39}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{134E1C6F-DE16-4C7C-AB02-3DAF83A4CF39}.Release|Any CPU.Build.0 = Release|Any CPU
-		{62887BED-8F0F-4152-89EC-D69C90E89438}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{62887BED-8F0F-4152-89EC-D69C90E89438}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{62887BED-8F0F-4152-89EC-D69C90E89438}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{62887BED-8F0F-4152-89EC-D69C90E89438}.Release|Any CPU.Build.0 = Release|Any CPU
+		{23E816ED-4553-48CE-9439-B23A2DAD153E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{23E816ED-4553-48CE-9439-B23A2DAD153E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{23E816ED-4553-48CE-9439-B23A2DAD153E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{23E816ED-4553-48CE-9439-B23A2DAD153E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

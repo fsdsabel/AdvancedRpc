@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Threading.Tasks;
@@ -7,7 +7,7 @@ using AdvancedRpcLib.Channels.Tcp;
 using AdvancedRpcLib.Serializers;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace AdvancedRpcLib.Tests
+namespace AdvancedRpcLib.UnitTests
 {
     [TestClass]
     public class UnitTest1
@@ -288,7 +288,8 @@ namespace AdvancedRpcLib.Tests
 
                 await client2.ConnectAsync();
                 proxy2 = await client2.GetServerObjectAsync<ITestObject>();
-            } else if(type == ChannelType.NamedPipe)
+            }
+            else if (type == ChannelType.NamedPipe)
             {
                 var client2 = new NamedPipeRpcClientChannel(
                     new JsonRpcSerializer(),
@@ -299,8 +300,8 @@ namespace AdvancedRpcLib.Tests
                 proxy2 = await client2.GetServerObjectAsync<ITestObject>();
             }
 
-            
-            
+
+
 
 
 
@@ -339,7 +340,7 @@ namespace AdvancedRpcLib.Tests
         public interface ITestObject
         {
             event EventHandler<CustomEventArgs> TestEvent;
-            
+
             bool WasCalled { get; set; }
 
             string Property { get; set; }
