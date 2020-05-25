@@ -11,7 +11,7 @@ namespace AdvancedRpcLib.Channels
          IRpcMessageFactory messageFactory,
          IRpcObjectRepository localRepository = null,
          Func<IRpcObjectRepository> remoteRepository = null)
-         : base(serializer, messageFactory, localRepository, remoteRepository)
+         : base(serializer, messageFactory, RpcChannelType.Client, localRepository, remoteRepository)
         {
         }
 

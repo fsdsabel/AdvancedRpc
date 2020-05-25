@@ -4,14 +4,22 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using Newtonsoft.Json.Linq;
 
 namespace AdvancedRpcLib.Channels
 {
     public interface ITransportChannel : IDisposable
     {
         Stream GetStream();
+    }
+
+    public enum RpcChannelType
+    {
+        Client,
+        Server
     }
 
     public abstract class RpcChannel<TChannel> where TChannel:ITransportChannel
@@ -49,13 +57,14 @@ namespace AdvancedRpcLib.Channels
 
         protected RpcChannel(IRpcSerializer serializer,
            IRpcMessageFactory messageFactory,
+           RpcChannelType channelType,
            IRpcObjectRepository localRepository = null,
            Func<IRpcObjectRepository> remoteRepository = null)
         {
             _messageFactory = messageFactory;
             _serializer = serializer;
-            _remoteRepository = remoteRepository ?? (() => new RpcObjectRepository());
-            _localRepository = localRepository ?? new RpcObjectRepository();
+            _remoteRepository = remoteRepository ?? (() => new RpcObjectRepository(channelType == RpcChannelType.Server));
+            _localRepository = localRepository ?? new RpcObjectRepository(channelType == RpcChannelType.Client);
         }
 
         protected IRpcObjectRepository GetRemoteRepository(TChannel channel)
@@ -112,22 +121,31 @@ namespace AdvancedRpcLib.Channels
         protected object CallRpcMethod(TChannel channel,
             int instanceId, string methodName, Type[] argTypes, object[] args, Type resultType)
         {
+            RpcCallResultMessage response;
             try
             {
-                var response = SendMessageAsync<RpcCallResultMessage>(channel, () => _messageFactory.CreateMethodCallMessage(_localRepository, instanceId, methodName, argTypes, args))
+                response = SendMessageAsync<RpcCallResultMessage>(channel,
+                        () => _messageFactory.CreateMethodCallMessage(_localRepository, instanceId, methodName,
+                            argTypes, args))
                     .GetAwaiter().GetResult();
 
                 if (response.ResultType == RpcType.Proxy)
                 {
-                    return GetRemoteRepository(channel).GetProxyObject(GetRpcChannelForClient(channel), resultType, Convert.ToInt32(response.Result));
+                    return GetRemoteRepository(channel).GetProxyObject(GetRpcChannelForClient(channel), resultType,
+                        Convert.ToInt32(response.Result));
                 }
-
-                return response.Result;
             }
             catch (Exception ex)
             {
                 throw new RpcFailedException($"Calling remote method {methodName} on object #{instanceId} failed.", ex);
             }
+
+            if (response.Type == RpcMessageType.Exception)
+            {
+                throw (Exception) response.Result;
+            }
+
+            return response.Result;
         }
 
         public void RemoveInstance(TChannel channel, int localInstanceId, int remoteInstanceId)
@@ -186,8 +204,12 @@ namespace AdvancedRpcLib.Channels
             switch (msg.Type)
             {
                 case RpcMessageType.CallMethod:
+                {
+                    RpcCallResultMessage resultMessage;
+                    var m = _serializer.DeserializeMessage<RpcMethodCallMessage>(data);
+                    try
                     {
-                        var m = _serializer.DeserializeMessage<RpcMethodCallMessage>(data);
+
                         var obj = _localRepository.GetInstance(m.InstanceId);
 
                         var targetMethod = obj.GetType().GetMethod(m.MethodName);
@@ -201,21 +223,26 @@ namespace AdvancedRpcLib.Channels
                                     args[i] = Convert.ChangeType(m.Arguments[i].Value, targetParameterTypes[i]);
                                     break;
                                 case RpcType.Proxy:
-                                    args[i] = GetRemoteRepository(channel).GetProxyObject(GetRpcChannelForClient(channel),
-                                                    targetParameterTypes[i], (int)Convert.ChangeType(m.Arguments[i].Value, typeof(int)));
+                                    args[i] = GetRemoteRepository(channel).GetProxyObject(
+                                        GetRpcChannelForClient(channel),
+                                        targetParameterTypes[i],
+                                        (int) Convert.ChangeType(m.Arguments[i].Value, typeof(int)));
                                     break;
                                 case RpcType.Serialized:
                                     var type = Type.GetType(m.Arguments[i].TypeId);
-                                    args[i] = JsonConvert.DeserializeObject(JsonConvert.SerializeObject(m.Arguments[i].Value), type);
+                                    args[i] = JsonConvert.DeserializeObject(
+                                        JsonConvert.SerializeObject(m.Arguments[i].Value), type);
                                     break;
                                 default:
                                     throw new InvalidDataException();
                             }
                         }
 
+
                         var result = targetMethod.Invoke(obj, args);
 
-                        var resultMessage = new RpcCallResultMessage
+
+                        resultMessage = new RpcCallResultMessage
                         {
                             CallId = m.CallId,
                             Type = RpcMessageType.CallMethodResult,
@@ -229,12 +256,32 @@ namespace AdvancedRpcLib.Channels
                             resultMessage.ResultType = RpcType.Proxy;
                             resultMessage.Result = handle.InstanceId;
                         }
-
-
-                        var response = _serializer.SerializeMessage(resultMessage);
-                        SendMessage(channel.GetStream(), response);
-                        return true;
                     }
+                    catch (TargetInvocationException ex)
+                    {
+                        resultMessage = new RpcCallResultMessage
+                        {
+                            CallId = m.CallId,
+                            Type = RpcMessageType.Exception,
+                            ResultType = RpcType.Serialized,
+                            Result = ex.InnerException 
+                        };
+                    }
+                    catch (Exception ex)
+                    {
+                        resultMessage = new RpcCallResultMessage
+                        {
+                            CallId = m.CallId,
+                            Type = RpcMessageType.Exception,
+                            ResultType = RpcType.Serialized,
+                            Result = ex
+                        };
+                    }
+                    
+                    var response = _serializer.SerializeMessage(resultMessage);
+                    SendMessage(channel.GetStream(), response);
+                    return true;
+                }
                 case RpcMessageType.RemoveInstance:
                     {
                         var m = _serializer.DeserializeMessage<RpcRemoveInstanceMessage>(data);

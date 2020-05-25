@@ -5,6 +5,7 @@ using AdvancedRpcLib.Serializers;
 using System;
 using System.Net;
 using System.Threading.Tasks;
+using AdvancedRpcLib.Channels.NamedPipe;
 
 namespace TestServer
 {
@@ -12,12 +13,16 @@ namespace TestServer
     {
         static async Task Main(string[] args)
         {
-            var serverRepo = new RpcObjectRepository();
-            var server = new TcpRpcServerChannel(                
+            
+            /*var server = new TcpRpcServerChannel(                
                 new JsonRpcSerializer(),
                 new RpcMessageFactory(),
                 IPAddress.Loopback,
                 11234);
+            server.ObjectRepository.RegisterSingleton(new TestObject());
+            await server.ListenAsync();*/
+
+            var server = new NamedPipeRpcServerChannel(new JsonRpcSerializer(), new RpcMessageFactory(), "test");
             server.ObjectRepository.RegisterSingleton(new TestObject());
             await server.ListenAsync();
 

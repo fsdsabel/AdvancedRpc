@@ -10,7 +10,8 @@ namespace AdvancedRpcLib
         GetServerObject = 2,
         CallMethod = 3,
         RemoveInstance = 4,
-        CallMethodResult = 5
+        CallMethodResult = 5,
+        Exception = 6
     }
 
 

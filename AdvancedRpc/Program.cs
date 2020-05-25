@@ -17,6 +17,7 @@ using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using AdvancedRpcLib.Channels.NamedPipe;
 
 namespace AdvancedRpc
 {
@@ -54,15 +55,17 @@ namespace AdvancedRpc
             await server.ListenAsync();*/
 
 
-            var client = new TcpRpcClientChannel(         
+            /*var client = new TcpRpcClientChannel(         
                 new JsonRpcSerializer(),
                 new RpcMessageFactory(),
                 IPAddress.Loopback,
-                11234);
+                11234);*/
+            var client = new NamedPipeRpcClientChannel(
+                new JsonRpcSerializer(),
+                new RpcMessageFactory(), 
+                "test");
 
             await client.ConnectAsync();
-      
-
             
             var testObj = await client.GetServerObjectAsync<ITestObject>();
             Console.WriteLine(testObj.SimpleCall());
@@ -75,7 +78,7 @@ namespace AdvancedRpc
                 j+=testObj.Calculate(2, 8);
             }
             sw.Stop();
-            Console.WriteLine(j);
+            Console.WriteLine(sw.Elapsed);
             
             Console.ReadLine();
         }

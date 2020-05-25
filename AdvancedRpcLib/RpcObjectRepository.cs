@@ -10,8 +10,14 @@ namespace AdvancedRpcLib
 
     public class RpcObjectRepository : IRpcObjectRepository
     {
-        private readonly Dictionary<RpcObjectHandle, RpcObjectHandle> _rpcObjects = new Dictionary<RpcObjectHandle, RpcObjectHandle>();
-        
+        private readonly bool _clientRepository;
+        private readonly HashSet<RpcObjectHandle> _rpcObjects = new HashSet<RpcObjectHandle>();
+
+        public RpcObjectRepository(bool clientRepository)
+        {
+            _clientRepository = clientRepository;
+        }
+
 
         public string CreateTypeId<T>()
         {
@@ -30,13 +36,16 @@ namespace AdvancedRpcLib
 
         private void Purge()
         {
-            lock(_rpcObjects)
+            if (_clientRepository) // never purge on server side, they are only removed by explicit client calls
             {
-                foreach(var o in _rpcObjects.ToArray())
+                lock (_rpcObjects)
                 {
-                    if(!o.Key.Object.TryGetTarget(out var _))
+                    foreach (var o in _rpcObjects.ToArray())
                     {
-                        _rpcObjects.Remove(o.Key);
+                        if (!o.Object.TryGetTarget(out var _))
+                        {
+                            _rpcObjects.Remove(o);
+                        }
                     }
                 }
             }
@@ -49,11 +58,11 @@ namespace AdvancedRpcLib
                 Purge();
                 foreach (var obj in _rpcObjects)
                 {
-                    foreach (var intf in obj.Value.InterfaceTypes)
+                    foreach (var intf in obj.InterfaceTypes)
                     {
                         if (CreateTypeId(intf) == typeId)
                         {
-                            return obj.Value;
+                            return obj;
                         }
                     }
                 }
@@ -67,7 +76,7 @@ namespace AdvancedRpcLib
             {
                 Purge();
                 var v = new RpcObjectHandle(singleton, true);
-                _rpcObjects.Add(v, v);
+                _rpcObjects.Add(v);
             }
         }
 
@@ -78,19 +87,19 @@ namespace AdvancedRpcLib
                 Purge();
                 var existing = _rpcObjects.FirstOrDefault(o =>
                 {
-                    if (o.Value.Object.TryGetTarget(out var obj))
+                    if (o.Object.TryGetTarget(out var obj))
                     {
                         return ReferenceEquals(obj, instance);
                     }
                     return false;
                 });
-                if (existing.Key == null)
+                if (existing == null)
                 {
-                    var v = new RpcObjectHandle(instance);
-                    _rpcObjects.Add(v, v);
+                    var v = new RpcObjectHandle(instance, !_clientRepository); // always pin on server side as we never know when the client needs us again
+                    _rpcObjects.Add(v);
                     return v;
                 }
-                return existing.Key;
+                return existing;
             }
         }
 
@@ -116,10 +125,10 @@ namespace AdvancedRpcLib
             {
                 Purge();
                 var ch = RpcObjectHandle.ComparisonHandle(instanceId);
-                var toRemove = _rpcObjects.FirstOrDefault(o => !o.Key.IsPinned && o.Key.Equals(ch));
-                if (toRemove.Key != null)
+                var toRemove = _rpcObjects.FirstOrDefault(o => (_clientRepository || !o.IsPinned) && o.Equals(ch));
+                if (toRemove != null)
                 {
-                    _rpcObjects.Remove(toRemove.Key);
+                    _rpcObjects.Remove(toRemove);
                 }
             }
         }
@@ -137,7 +146,7 @@ namespace AdvancedRpcLib
                     }
                 }
                 var result = new RpcObjectHandle(null);
-                _rpcObjects.Add(result, result);
+                _rpcObjects.Add(result);
                 var instance = 
                     interfaceType.IsSubclassOf(typeof(Delegate)) ?
                     ImplementDelegate(interfaceType, channel, remoteInstanceId, result.InstanceId) :
@@ -191,10 +200,11 @@ namespace AdvancedRpcLib
         {
             var ab = AssemblyBuilder.DefineDynamicAssembly(new AssemblyName("RpcDynamicTypes"),
                 AssemblyBuilderAccess.RunAndCollect);
+            /*
 #if !NETSTANDARD && DEBUG
             ab = AssemblyBuilder.DefineDynamicAssembly(new AssemblyName("RpcDynamicTypes"),
                 AssemblyBuilderAccess.RunAndSave);
-#endif
+#endif*/
 
             //add a destructor so we can inform other side about us not needing the object anymore
 
@@ -231,9 +241,10 @@ namespace AdvancedRpcLib
 
             
             var type = tb.CreateTypeInfo().AsType();
+            /*
 #if !NETSTANDARD && DEBUG
             ab.Save(@"RpcDynamicTypes.dll");
-#endif
+#endif*/
 
             return Activator.CreateInstance(type, channel);
         }

@@ -161,6 +161,27 @@ namespace AdvancedRpcLib.UnitTests
         [DataTestMethod]
         [DataRow(ChannelType.NamedPipe)]
         [DataRow(ChannelType.Tcp)]
+        public async Task CallWithLoopedObjectResultSucceeds(ChannelType type)
+        {
+            var o = new TestObject();
+            var list = new List<ISubObject>();
+            var t = await Init<ITestObject>(o, type);
+            for (int i = 0; i < 10; i++)
+            {
+                list.Add(t.GetSubObject("a name" + i));
+            }
+            GC.Collect(2);
+            GC.WaitForPendingFinalizers();
+
+            for (int i = 0; i < 10; i++)
+            {
+                Assert.AreEqual("a name" + i, list[i].Name);
+            }
+        }
+
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
         public async Task SendAndReceiveNullSucceeds(ChannelType type)
         {
             var o = new TestObject();
@@ -330,6 +351,28 @@ namespace AdvancedRpcLib.UnitTests
             Assert.IsTrue(threads.TrueForAll(t => t.Result));
         }
 
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
+        [ExpectedException(typeof(ArgumentException), AllowDerivedTypes = false)]
+        public async Task RemoteExceptionIsPropagatedToClient(ChannelType type)
+        {
+            var o = new TestObject();
+            ITestObject co = await Init<ITestObject>(o, type);
+            try
+            {
+                co.ThrowException();
+            }
+            catch (ArgumentException ex)
+            {
+                StringAssert.StartsWith(ex.Message, "Fehler");
+                Assert.AreEqual("testparam", ex.ParamName);
+                // check if we can still use the channel
+                Assert.AreEqual("Test", co.Property);
+                throw;
+            }
+            
+        }
 
         [Serializable]
         public class CustomEventArgs : EventArgs
@@ -358,6 +401,8 @@ namespace AdvancedRpcLib.UnitTests
             ISubObject SetNameFromSubObject(ISubObject obj);
 
             string Reflect(string s);
+
+            void ThrowException();
         }
 
         public interface ISubObject
@@ -422,6 +467,11 @@ namespace AdvancedRpcLib.UnitTests
             public string Reflect(string s)
             {
                 return s;
+            }
+
+            public void ThrowException()
+            {
+                throw new ArgumentException("Fehler", "testparam");
             }
 
             internal void InvokeTestEvent()
