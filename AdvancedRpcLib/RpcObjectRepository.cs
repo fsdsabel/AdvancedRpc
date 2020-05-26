@@ -199,6 +199,11 @@ namespace AdvancedRpcLib
 
         private object ImplementInterface(Type interfaceType, IRpcChannel channel, int remoteInstanceId, int localInstanceId)
         {
+            if (interfaceType.IsNotPublic)
+            {
+                throw new RpcFailedException("Cannot get non public interface.");
+            }
+
             var ab = AssemblyBuilder.DefineDynamicAssembly(new AssemblyName("RpcDynamicTypes"),
                 AssemblyBuilderAccess.RunAndCollect);
             /*

@@ -375,7 +375,16 @@ namespace AdvancedRpcLib.UnitTests
                 Assert.AreEqual("Test", co.Property);
                 throw;
             }
-            
+        }
+
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
+        [ExpectedException(typeof(RpcFailedException))]
+        public async Task InternalInterfaceShouldNotBeAvailable(ChannelType type)
+        {
+            var o = new TestObject();
+            (await Init<IInternalInterface>(o, type)).ShouldNotBeVisible();
         }
 
         [Serializable]
@@ -424,7 +433,12 @@ namespace AdvancedRpcLib.UnitTests
             string CallMe2();
         }
 
-        class TestObject : ITestObject2
+        internal interface IInternalInterface
+        {
+            void ShouldNotBeVisible();
+        }
+
+        class TestObject : ITestObject2, IInternalInterface
         {
             public bool WasCalled { get; set; }
 
@@ -481,6 +495,10 @@ namespace AdvancedRpcLib.UnitTests
             internal void InvokeTestEvent()
             {
                 TestEvent?.Invoke(this, new CustomEventArgs { Data = "test" });
+            }
+
+            public void ShouldNotBeVisible()
+            {
             }
         }
     }
