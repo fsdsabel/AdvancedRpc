@@ -6,10 +6,8 @@
 
 
   <ItemGroup>
-    <PackageReference Include="Jil" Version="2.17.0" />
     <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
     <PackageReference Include="Nito.AsyncEx" Version="5.0.0" />
-    <PackageReference Include="protobuf-net" Version="3.0.0-alpha.143" />
     <PackageReference Include="System.Memory" Version="4.5.4" />
     <PackageReference Include="System.Reflection.Emit" Version="4.7.0" />
   </ItemGroup>

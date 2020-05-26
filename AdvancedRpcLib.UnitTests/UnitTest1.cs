@@ -26,7 +26,7 @@ namespace AdvancedRpcLib.UnitTests
         {
             if (serializer == null)
             {
-                serializer = new JilRpcSerializer();
+                serializer = new JsonRpcSerializer();
             }
             switch (type)
             {
