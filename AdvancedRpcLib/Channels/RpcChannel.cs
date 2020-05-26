@@ -220,13 +220,13 @@ namespace AdvancedRpcLib.Channels
                             switch (m.Arguments[i].Type)
                             {
                                 case RpcType.Builtin:
-                                    args[i] = Convert.ChangeType(m.Arguments[i].Value, targetParameterTypes[i]);
+                                    args[i] = _serializer.ChangeType(m.Arguments[i].Value, targetParameterTypes[i]);
                                     break;
                                 case RpcType.Proxy:
                                     args[i] = GetRemoteRepository(channel).GetProxyObject(
                                         GetRpcChannelForClient(channel),
                                         targetParameterTypes[i],
-                                        (int) Convert.ChangeType(m.Arguments[i].Value, typeof(int)));
+                                        (int)_serializer.ChangeType(m.Arguments[i].Value, typeof(int)));
                                     break;
                                 case RpcType.Serialized:
                                     var type = Type.GetType(m.Arguments[i].TypeId);

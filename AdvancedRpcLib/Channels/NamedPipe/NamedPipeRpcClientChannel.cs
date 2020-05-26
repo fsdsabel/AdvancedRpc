@@ -26,7 +26,7 @@ namespace AdvancedRpcLib.Channels.NamedPipe
 
         public override async Task ConnectAsync()
         {
-            var stream = new NamedPipeClientStream(".", _pipeName, PipeDirection.InOut, PipeOptions.Asynchronous, System.Security.Principal.TokenImpersonationLevel.Impersonation);
+            var stream = new NamedPipeClientStream(".", _pipeName, PipeDirection.InOut, PipeOptions.Asynchronous, System.Security.Principal.TokenImpersonationLevel.None);
             _channel = new NamedPipeTransportChannel(stream);
             await stream.ConnectAsync();
             RegisterMessageCallback(_channel, HandleReceivedData, false);

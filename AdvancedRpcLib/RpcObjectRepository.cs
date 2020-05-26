@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
+using AdvancedRpcLib.Serializers;
 
 namespace AdvancedRpcLib
 {
@@ -314,11 +315,12 @@ namespace AdvancedRpcLib
             {
                 il.Emit(OpCodes.Ldtoken, method.ReturnType);
                 il.EmitCall(OpCodes.Call, typeof(Type).GetMethod(nameof(Type.GetTypeFromHandle)), null);
-                il.EmitCall(OpCodes.Call, typeof(Convert).GetMethod(nameof(Convert.ChangeType), new[] { typeof(object), typeof(Type) }), null);
+//                il.EmitCall(OpCodes.Call, typeof(Convert).GetMethod(nameof(Convert.ChangeType), new[] { typeof(object), typeof(Type) }), null);
+                il.EmitCall(OpCodes.Call, typeof(JilRpcSerializer).GetMethod(nameof(JilRpcSerializer.DoChangeType), new[] { typeof(object), typeof(Type) }), null);
                 il.Emit(OpCodes.Unbox_Any, method.ReturnType);
             }
             il.Emit(OpCodes.Ret);
-
+            
             if (overrideBase)
             {
                 tb.DefineMethodOverride(mb, method);

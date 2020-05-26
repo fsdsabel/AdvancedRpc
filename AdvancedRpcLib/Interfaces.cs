@@ -12,6 +12,7 @@ namespace AdvancedRpcLib
 
 
         T DeserializeMessage<T>(ReadOnlySpan<byte> data) where T : RpcMessage;
+        object ChangeType(object value, Type targetType);
     }
 
     

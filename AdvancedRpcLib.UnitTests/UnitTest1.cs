@@ -22,14 +22,18 @@ namespace AdvancedRpcLib.UnitTests
             NamedPipe
         }
 
-        private async Task<T> Init<T>(T instance, ChannelType type)
+        private async Task<T> Init<T>(T instance, ChannelType type, IRpcSerializer serializer = null)
         {
+            if (serializer == null)
+            {
+                serializer = new JilRpcSerializer();
+            }
             switch (type)
             {
                 case ChannelType.Tcp:
                     {
                         var server = _serverChannel = new TcpRpcServerChannel(
-                            new JsonRpcSerializer(),
+                            serializer,
                             new RpcMessageFactory(),
                             IPAddress.Loopback,
                             11234);
@@ -38,7 +42,7 @@ namespace AdvancedRpcLib.UnitTests
 
 
                         var client = _clientChannel = new TcpRpcClientChannel(
-                            new JsonRpcSerializer(),
+                            serializer,
                             new RpcMessageFactory(),
                             IPAddress.Loopback,
                             11234);
@@ -50,7 +54,7 @@ namespace AdvancedRpcLib.UnitTests
                     {
                         _pipeName = Guid.NewGuid().ToString();
                         var server = _serverChannel = new NamedPipeRpcServerChannel(
-                            new JsonRpcSerializer(),
+                            serializer,
                             new RpcMessageFactory(),
                             _pipeName);
                         server.ObjectRepository.RegisterSingleton(instance);
@@ -58,7 +62,7 @@ namespace AdvancedRpcLib.UnitTests
 
 
                         var client = _clientChannel = new NamedPipeRpcClientChannel(
-                            new JsonRpcSerializer(),
+                            serializer,
                             new RpcMessageFactory(),
                             _pipeName);
 

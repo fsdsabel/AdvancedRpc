@@ -61,7 +61,7 @@ namespace AdvancedRpc
                 IPAddress.Loopback,
                 11234);*/
             var client = new NamedPipeRpcClientChannel(
-                new JsonRpcSerializer(),
+                new JsonRpcSerializer(),  
                 new RpcMessageFactory(), 
                 "test");
 
