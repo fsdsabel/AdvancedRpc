@@ -22,7 +22,7 @@ namespace TestServer
             server.ObjectRepository.RegisterSingleton(new TestObject());
             await server.ListenAsync();*/
 
-            var server = new NamedPipeRpcServerChannel(new JsonRpcSerializer(), new RpcMessageFactory(), "test");
+            var server = new NamedPipeRpcServerChannel(new BinaryRpcSerializer(), new RpcMessageFactory(), "test");
             server.ObjectRepository.RegisterSingleton(new TestObject());
             await server.ListenAsync();
 

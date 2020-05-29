@@ -26,7 +26,7 @@ namespace AdvancedRpcLib.UnitTests
         {
             if (serializer == null)
             {
-                serializer = new JsonRpcSerializer();
+                serializer = new BinaryRpcSerializer();
             }
             switch (type)
             {
@@ -306,7 +306,7 @@ namespace AdvancedRpcLib.UnitTests
             if (type == ChannelType.Tcp)
             {
                 var client2 = new TcpRpcClientChannel(
-                    new JsonRpcSerializer(),
+                    new BinaryRpcSerializer(),
                     new RpcMessageFactory(),
                     IPAddress.Loopback,
                     11234);
@@ -317,7 +317,7 @@ namespace AdvancedRpcLib.UnitTests
             else if (type == ChannelType.NamedPipe)
             {
                 var client2 = new NamedPipeRpcClientChannel(
-                    new JsonRpcSerializer(),
+                    new BinaryRpcSerializer(), 
                     new RpcMessageFactory(),
                    _pipeName);
 

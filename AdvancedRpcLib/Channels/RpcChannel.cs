@@ -1,5 +1,4 @@
-﻿using Newtonsoft.Json;
-using Nito.AsyncEx;
+﻿using Nito.AsyncEx;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -236,8 +235,9 @@ namespace AdvancedRpcLib.Channels
                                     break;
                                 case RpcType.Serialized:
                                     var type = Type.GetType(m.Arguments[i].TypeId);
-                                    args[i] = JsonConvert.DeserializeObject(
-                                        JsonConvert.SerializeObject(m.Arguments[i].Value), type);
+                                    /*args[i] = Serializer.DeserializeObject(Serializer.SerializeObject(m.Arguments[i].Value),
+                                        type);*/
+                                    args[i] = Serializer.ChangeType(m.Arguments[i].Value, type);
                                     break;
                                 default:
                                     throw new InvalidDataException();
