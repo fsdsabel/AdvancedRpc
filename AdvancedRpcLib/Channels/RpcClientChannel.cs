@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace AdvancedRpcLib.Channels
 {
@@ -10,8 +11,9 @@ namespace AdvancedRpcLib.Channels
          IRpcSerializer serializer,
          IRpcMessageFactory messageFactory,
          IRpcObjectRepository localRepository = null,
-         Func<IRpcObjectRepository> remoteRepository = null)
-         : base(serializer, messageFactory, RpcChannelType.Client, localRepository, remoteRepository)
+         Func<IRpcObjectRepository> remoteRepository = null,
+         ILoggerFactory loggerFactory = null)
+         : base(serializer, messageFactory, RpcChannelType.Client, localRepository, remoteRepository, loggerFactory)
         {
         }
 
@@ -25,7 +27,7 @@ namespace AdvancedRpcLib.Channels
 
         protected bool HandleReceivedData(ReadOnlySpan<byte> data)
         {
-            var msg = _serializer.DeserializeMessage<RpcMessage>(data);
+            var msg = Serializer.DeserializeMessage<RpcMessage>(data);
             return HandleRemoteMessage(TransportChannel, data, msg);
         }
 
@@ -35,7 +37,7 @@ namespace AdvancedRpcLib.Channels
             {
                 var remoteRepo = GetRemoteRepository(TransportChannel);
                 var response = await SendMessageAsync<RpcGetServerObjectResponseMessage>(TransportChannel,
-                    () => _messageFactory.CreateGetServerObjectMessage(remoteRepo.CreateTypeId<TResult>()));
+                    () => MessageFactory.CreateGetServerObjectMessage(remoteRepo.CreateTypeId<TResult>()));
                 return remoteRepo.GetProxyObject<TResult>(GetRpcChannelForClient(TransportChannel), response.InstanceId);
             }
             catch (Exception ex)

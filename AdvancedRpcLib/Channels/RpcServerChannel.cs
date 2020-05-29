@@ -21,7 +21,7 @@ namespace AdvancedRpcLib.Channels
         public event EventHandler<ChannelConnectedEventArgs<TChannel>> ClientConnected;
         public event EventHandler<ChannelConnectedEventArgs<TChannel>> ClientDisconnected;
 
-        public IRpcObjectRepository ObjectRepository => _localRepository;
+        public IRpcObjectRepository ObjectRepository => LocalRepository;
 
         public abstract Task ListenAsync();
 
@@ -30,7 +30,7 @@ namespace AdvancedRpcLib.Channels
 
         protected bool HandleReceivedData(TChannel channel, ReadOnlySpan<byte> data)
         {
-            var msg = _serializer.DeserializeMessage<RpcMessage>(data);
+            var msg = Serializer.DeserializeMessage<RpcMessage>(data);
             if (HandleRemoteMessage(channel, data, msg))
             {
                 return true;
@@ -40,9 +40,9 @@ namespace AdvancedRpcLib.Channels
             {
                 case RpcMessageType.GetServerObject:
                     {
-                        var m = _serializer.DeserializeMessage<RpcGetServerObjectMessage>(data);
-                        var obj = _localRepository.GetObject(m.TypeId);
-                        var response = _serializer.SerializeMessage(new RpcGetServerObjectResponseMessage
+                        var m = Serializer.DeserializeMessage<RpcGetServerObjectMessage>(data);
+                        var obj = LocalRepository.GetObject(m.TypeId);
+                        var response = Serializer.SerializeMessage(new RpcGetServerObjectResponseMessage
                         {
                             CallId = m.CallId,
                             Type = RpcMessageType.GetServerObject,

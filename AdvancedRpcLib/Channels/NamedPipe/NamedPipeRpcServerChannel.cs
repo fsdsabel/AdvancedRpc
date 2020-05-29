@@ -32,6 +32,7 @@ namespace AdvancedRpcLib.Channels.NamedPipe
                 while (!_cancellationTokenSource.IsCancellationRequested)
                 {
                     var pipe = new NamedPipeServerStream(_pipeName, PipeDirection.InOut, NamedPipeServerStream.MaxAllowedServerInstances, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+                    _cancellationTokenSource.Token.Register(() => pipe.Dispose());
                     initEvent.Set();
                     await pipe.WaitForConnectionAsync(_cancellationTokenSource.Token);
                     if (!_cancellationTokenSource.IsCancellationRequested)
