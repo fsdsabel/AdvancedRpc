@@ -1,4 +1,5 @@
-﻿using Newtonsoft.Json;
+﻿#if JSON
+using Newtonsoft.Json;
 using System;
 using System.IO;
 using System.Text;
@@ -8,9 +9,9 @@ namespace AdvancedRpcLib.Serializers
 {
     public class JsonRpcSerializer : IRpcSerializer
     {
-        public T DeserializeMessage<T>(ReadOnlySpan<byte> data) where T : RpcMessage
+        public T DeserializeMessage<T>(byte[] data) where T : RpcMessage
         {
-            using (var reader = new JsonTextReader(new StreamReader(new MemoryStream(data.ToArray()))))
+            using (var reader = new JsonTextReader(new StreamReader(new MemoryStream(data))))
             {
                 var converter = new JsonSerializer();
                 var result = converter.Deserialize<T>(reader);
@@ -37,3 +38,4 @@ namespace AdvancedRpcLib.Serializers
         }
     }
 }
+#endif

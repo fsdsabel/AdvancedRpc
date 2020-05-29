@@ -1,28 +1,34 @@
 ﻿using System;
 using System.IO;
+using System.Runtime.Serialization.Formatters;
 using System.Runtime.Serialization.Formatters.Binary;
+using System.Runtime.Serialization.Json;
+using System.Threading;
 
 namespace AdvancedRpcLib.Serializers
 {
     public class BinaryRpcSerializer : IRpcSerializer
 
     {
+        private readonly ThreadLocal<BinaryFormatter> _formatter = new ThreadLocal<BinaryFormatter>(()=>new BinaryFormatter());
+
         public byte[] SerializeMessage<T>(T message) where T : RpcMessage
         {
             using (var ms = new MemoryStream())
             {
-                new BinaryFormatter().Serialize(ms, message);
+                _formatter.Value.Serialize(ms, message);
                 return ms.ToArray();
             }
         }
 
-        public T DeserializeMessage<T>(ReadOnlySpan<byte> data) where T : RpcMessage
+        public T DeserializeMessage<T>(byte[] data) where T : RpcMessage
         {
-            using (var ms = new MemoryStream(data.ToArray()))
+            using (var ms = new MemoryStream(data))
             {
-                return (T)new BinaryFormatter().Deserialize(ms);
+                return (T)_formatter.Value.Deserialize(ms);
             }
         }
+
 
         public object ChangeType(object value, Type targetType)
         {

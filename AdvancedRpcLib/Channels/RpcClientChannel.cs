@@ -25,7 +25,7 @@ namespace AdvancedRpcLib.Channels
 
         protected abstract TChannel TransportChannel { get; }
 
-        protected bool HandleReceivedData(ReadOnlySpan<byte> data)
+        protected bool HandleReceivedData(byte[] data)
         {
             var msg = Serializer.DeserializeMessage<RpcMessage>(data);
             return HandleRemoteMessage(TransportChannel, data, msg);

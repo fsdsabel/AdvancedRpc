@@ -16,13 +16,13 @@ namespace AdvancedRpcLib.UnitTests
         {
             var name = Guid.NewGuid().ToString();
             using (var server = new NamedPipeRpcServerChannel(
-                new JsonRpcSerializer(),
+                new BinaryRpcSerializer(),
                 new RpcMessageFactory(),
                 name))
             {
                 await server.ListenAsync();
 
-                using (var client = new NamedPipeRpcClientChannel(new JsonRpcSerializer(),
+                using (var client = new NamedPipeRpcClientChannel(new BinaryRpcSerializer(),
                     new RpcMessageFactory(), name))
                 {
                     var wait = new ManualResetEventSlim(false);
@@ -45,13 +45,13 @@ namespace AdvancedRpcLib.UnitTests
         {
             var name = Guid.NewGuid().ToString();
             using (var server = new NamedPipeRpcServerChannel(
-                new JsonRpcSerializer(),
+                new BinaryRpcSerializer(),
                 new RpcMessageFactory(),
                 name))
             {
                 await server.ListenAsync();
 
-                using (var client = new NamedPipeRpcClientChannel(new JsonRpcSerializer(),
+                using (var client = new NamedPipeRpcClientChannel(new BinaryRpcSerializer(),
                     new RpcMessageFactory(), name))
                 {
                     
@@ -77,13 +77,13 @@ namespace AdvancedRpcLib.UnitTests
         {
             var name = Guid.NewGuid().ToString();
             using (var server = new NamedPipeRpcServerChannel(
-                new JsonRpcSerializer(),
+                new BinaryRpcSerializer(),
                 new RpcMessageFactory(),
                 name))
             {
                 await server.ListenAsync();
 
-                using (var client = new NamedPipeRpcClientChannel(new JsonRpcSerializer(),
+                using (var client = new NamedPipeRpcClientChannel(new BinaryRpcSerializer(),
                     new RpcMessageFactory(), name))
                 {
                     

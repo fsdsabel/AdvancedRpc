@@ -5,7 +5,7 @@ namespace AdvancedRpcLib.Helpers
 {
     class AsyncNotification
     {
-        public delegate bool DataReceivedDelegate(ReadOnlySpan<byte> data);
+        public delegate bool DataReceivedDelegate(byte[] data);
 
         private readonly List<Tuple<DataReceivedDelegate, bool>> _callbacks = new List<Tuple<DataReceivedDelegate, bool>>();
 
@@ -17,7 +17,7 @@ namespace AdvancedRpcLib.Helpers
             }
         }
 
-        public bool Notify(ReadOnlySpan<byte> data)
+        public bool Notify(byte[] data)
         {
             Tuple<DataReceivedDelegate, bool>[] callbacks;
             lock (_callbacks)

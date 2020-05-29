@@ -7,7 +7,7 @@ namespace AdvancedRpcLib
     {
         byte[] SerializeMessage<T>(T message) where T : RpcMessage;
 
-        T DeserializeMessage<T>(ReadOnlySpan<byte> data) where T : RpcMessage;
+        T DeserializeMessage<T>(byte[] data) where T : RpcMessage;
 
         object ChangeType(object value, Type targetType);
     }

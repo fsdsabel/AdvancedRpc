@@ -1,13 +1,12 @@
-﻿using Nito.AsyncEx;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Text;
 using System.Threading.Tasks;
 using AdvancedRpcLib.Helpers;
 using Microsoft.Extensions.Logging;
+using Nito.AsyncEx;
 
 namespace AdvancedRpcLib.Channels
 {
@@ -96,20 +95,21 @@ namespace AdvancedRpcLib.Channels
         {
             lock (_sendLock)
             {
-                using (var writer = new BinaryWriter(stream, Encoding.UTF8, true))
+                
+                if (msg.Length <= ushort.MaxValue)
                 {
-                    if (msg.Length <= ushort.MaxValue)
-                    {
-                        writer.Write((byte)RpcChannelMessageType.Message);
-                        writer.Write((ushort)msg.Length);
-                    }
-                    else
-                    {
-                        writer.Write((byte)RpcChannelMessageType.LargeMessage);
-                        writer.Write(msg.Length);
-                    }
-                    writer.Write(msg);
+                    stream.WriteByte((byte) RpcChannelMessageType.Message);
+                    var len = BitConverter.GetBytes((ushort)msg.Length);
+                    stream.Write(len, 0, len.Length);
                 }
+                else
+                {
+                    stream.WriteByte((byte) RpcChannelMessageType.LargeMessage);
+                    var len = BitConverter.GetBytes(msg.Length);
+                    stream.Write(len, 0, len.Length);
+                }
+
+                stream.Write(msg, 0, msg.Length);
             }
         }
 
@@ -201,7 +201,7 @@ namespace AdvancedRpcLib.Channels
             return new RpcChannelWrapper(this, channel);
         }
 
-        protected bool HandleRemoteMessage(TChannel channel, ReadOnlySpan<byte> data, RpcMessage msg)
+        protected bool HandleRemoteMessage(TChannel channel, byte[] data, RpcMessage msg)
         {
             switch (msg.Type)
             {
@@ -312,7 +312,7 @@ namespace AdvancedRpcLib.Channels
                     try
                     {
                         //smallMessageBuffer
-                        if (!_messageNotifications[channel].Notify(new ReadOnlySpan<byte>(data)))
+                        if (!_messageNotifications[channel].Notify(data))
                         {
                             _logger?.LogError($"Failed to process message.");
                         }
@@ -328,35 +328,29 @@ namespace AdvancedRpcLib.Channels
             {
                 try
                 {
-                    var reader = new BinaryReader(channel.GetStream(), Encoding.UTF8, true);
-                    var smallMessageBuffer = new byte[ushort.MaxValue];
+                    var stream = channel.GetStream();
+                    byte[] lengthBytes = new byte[4];
 
                     while (true)
                     {
-                        var type = (RpcChannelMessageType) reader.ReadByte();
+                        var type = (RpcChannelMessageType) stream.ReadByte();
                         switch (type)
                         {
                             case RpcChannelMessageType.LargeMessage:
                             {
-                                var msgLen = reader.ReadInt32();
-                                var data = reader.ReadBytes(msgLen);
+                                stream.Read(lengthBytes, 0, 4);
+                                var msgLen = BitConverter.ToInt32(lengthBytes, 0);
+
+                                var data = ReadBytes(stream, msgLen);
                                 NotifyMessage(data);
                                 break;
                             }
                             case RpcChannelMessageType.Message:
                             {
-                                var msgLen = reader.ReadUInt16();
-                                int offset = 0;
-                                while (offset < msgLen)
-                                {
-                                    offset += reader.Read(smallMessageBuffer, offset, msgLen - offset);
-                                }
-
-                                var copy = new byte[msgLen];
-                                Array.Copy(smallMessageBuffer, copy, msgLen);
-
-                                NotifyMessage(copy);
-
+                                stream.Read(lengthBytes, 0, 2);
+                                var msgLen = BitConverter.ToUInt16(lengthBytes, 0);
+                                var data = ReadBytes(stream, msgLen);
+                                NotifyMessage(data);
                                 break;
                             }
                             default:
@@ -380,6 +374,19 @@ namespace AdvancedRpcLib.Channels
                     onDone();
                 }
             });
+        }
+
+        
+        private static byte[] ReadBytes(Stream stream, int length)
+        {
+            int offset = 0;
+            var result = new byte[length];
+            while (offset < length)
+            {
+                offset += stream.Read(result, offset, length - offset);
+            }
+
+            return result;
         }
     }
 }

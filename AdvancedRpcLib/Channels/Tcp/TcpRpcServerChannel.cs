@@ -2,7 +2,6 @@
 using System;
 using System.Net;
 using System.Net.Sockets;
-using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 
 namespace AdvancedRpcLib.Channels.Tcp
@@ -28,7 +27,7 @@ namespace AdvancedRpcLib.Channels.Tcp
         
         public override async Task ListenAsync()
         {
-            var initEvent = new AsyncAutoResetEvent(false);
+            var initEvent = new AsyncManualResetEvent(false);
 #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
             Task.Run(delegate
             {

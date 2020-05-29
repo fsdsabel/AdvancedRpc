@@ -28,7 +28,7 @@ namespace AdvancedRpcLib.Channels
       
         protected abstract void Stop();
 
-        protected bool HandleReceivedData(TChannel channel, ReadOnlySpan<byte> data)
+        protected bool HandleReceivedData(TChannel channel, byte[] data)
         {
             var msg = Serializer.DeserializeMessage<RpcMessage>(data);
             if (HandleRemoteMessage(channel, data, msg))

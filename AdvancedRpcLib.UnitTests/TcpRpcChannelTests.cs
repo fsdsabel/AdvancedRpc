@@ -15,14 +15,14 @@ namespace AdvancedRpcLib.UnitTests
         public async Task TcpRpcServerRaisesEventOnClientConnection()
         {
             using (var server = new TcpRpcServerChannel(
-                new JsonRpcSerializer(),
+                new BinaryRpcSerializer(),
                 new RpcMessageFactory(),
                 IPAddress.Loopback,
                 11234))
             {
                 await server.ListenAsync();
 
-                using (var client = new TcpRpcClientChannel(new JsonRpcSerializer(),
+                using (var client = new TcpRpcClientChannel(new BinaryRpcSerializer(),
                     new RpcMessageFactory(),
                     IPAddress.Loopback,
                     11234))
@@ -46,14 +46,14 @@ namespace AdvancedRpcLib.UnitTests
         public async Task TcpRpcServerRaisesEventOnClientDisconnect()
         {
             using (var server = new TcpRpcServerChannel(
-                new JsonRpcSerializer(),
+                new BinaryRpcSerializer(),
                 new RpcMessageFactory(),
                 IPAddress.Loopback,
                 11234))
             {
                 await server.ListenAsync();
 
-                using (var client = new TcpRpcClientChannel(new JsonRpcSerializer(),
+                using (var client = new TcpRpcClientChannel(new BinaryRpcSerializer(),
                     new RpcMessageFactory(),
                     IPAddress.Loopback,
                     11234))
@@ -80,14 +80,14 @@ namespace AdvancedRpcLib.UnitTests
         public async Task TcpRpcClientRaisesEventOnDisconnectWhenServerShutdown()
         {
             using (var server = new TcpRpcServerChannel(
-                new JsonRpcSerializer(),
+                new BinaryRpcSerializer(),
                 new RpcMessageFactory(),
                 IPAddress.Loopback,
                 11234))
             {
                 await server.ListenAsync();
 
-                using (var client = new TcpRpcClientChannel(new JsonRpcSerializer(),
+                using (var client = new TcpRpcClientChannel(new BinaryRpcSerializer(),
                     new RpcMessageFactory(),
                     IPAddress.Loopback,
                     11234))

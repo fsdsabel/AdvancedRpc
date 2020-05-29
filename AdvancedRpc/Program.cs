@@ -1,21 +1,8 @@
 ﻿using AdvancedRpcLib;
 using AdvancedRpcLib.Channels.Tcp;
 using AdvancedRpcLib.Serializers;
-using Newtonsoft.Json;
-using Nito.AsyncEx;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
-using System.Linq;
-using System.Net;
-using System.Net.Sockets;
-using System.Reflection;
-using System.Reflection.Emit;
-using System.Runtime.InteropServices;
-using System.Runtime.Serialization.Formatters.Binary;
-using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 using AdvancedRpcLib.Channels.NamedPipe;
 
@@ -88,14 +75,15 @@ namespace AdvancedRpc
             client.GetServerObjectAsync<ITestObject>().GetAwaiter().GetResult();
         }
     }
-
-
-
-    //TODO: Ableitungshierarchien
-
-    public interface ITestObject
+    
+    
+    public interface ITestObjectBase
     {
         string SimpleCall();
+    }
+
+    public interface ITestObject : ITestObjectBase
+    {
 
         int Calculate(int a, int b);
     }
