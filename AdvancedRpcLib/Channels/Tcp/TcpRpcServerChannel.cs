@@ -6,15 +6,12 @@ using System.Threading.Tasks;
 
 namespace AdvancedRpcLib.Channels.Tcp
 {
-
-
     public class TcpRpcServerChannel : RpcServerChannel<TcpTransportChannel>
     {
         private readonly IPAddress _address;
         private readonly int _port;
        
         private TcpListener _listener;
-
 
         public TcpRpcServerChannel(
             IRpcSerializer serializer,
@@ -39,13 +36,12 @@ namespace AdvancedRpcLib.Channels.Tcp
                 initEvent.Set();
                 while (true)
                 {
-                    
-                    var client = new TcpTransportChannel(_listener.AcceptTcpClient());
+                    var client = new TcpTransportChannel(this, _listener.AcceptTcpClient());
                     PurgeOldChannels();
                     AddChannel(client);
                     RegisterMessageCallback(client, data => HandleReceivedData(client, data), false);
-                    //TODO: Verbindung schließen behandeln
-                    RunReaderLoop(client);
+                    
+                    RunReaderLoop(client, () => OnClientDisconnected(new ChannelConnectedEventArgs<TcpTransportChannel>(client)));
                 }
             });
 #pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
@@ -59,5 +55,4 @@ namespace AdvancedRpcLib.Channels.Tcp
             _listener = null;
         }
     }
-
 }

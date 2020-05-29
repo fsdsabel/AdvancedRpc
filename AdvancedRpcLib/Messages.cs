@@ -14,7 +14,6 @@ namespace AdvancedRpcLib
         Exception = 6
     }
 
-
     [Serializable]
     public class RpcMessage
     {
@@ -56,7 +55,6 @@ namespace AdvancedRpcLib
         public RpcType ResultType { get; set; }
     }
 
-
     [Serializable]
     public class RpcRemoveInstanceMessage : RpcMessage
     {
@@ -75,7 +73,6 @@ namespace AdvancedRpcLib
     {
         public int InstanceId { get; set; }
     }
-
 
     enum RpcChannelMessageType
     {

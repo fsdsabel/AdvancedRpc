@@ -30,7 +30,6 @@ namespace AdvancedRpcLib
 
         public int InstanceId { get; }
 
-
         private WeakReference<object> _object;
         public WeakReference<object> Object {
             get => _object;
@@ -47,7 +46,6 @@ namespace AdvancedRpcLib
                 _object = value;
             }
         }
-
 
         public Type[] InterfaceTypes { get; private set; }
 
@@ -70,5 +68,4 @@ namespace AdvancedRpcLib
             return new RpcObjectHandle(instanceId);
         }
     }
-
 }

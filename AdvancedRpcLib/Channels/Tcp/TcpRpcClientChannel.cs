@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 
 namespace AdvancedRpcLib.Channels.Tcp
 {
-
     public class TcpRpcClientChannel : RpcClientChannel<TcpTransportChannel>
     {
         private readonly IPAddress _address;
@@ -25,17 +24,14 @@ namespace AdvancedRpcLib.Channels.Tcp
             _port = port;
         }
 
-
         protected override TcpTransportChannel TransportChannel => _tcpClient;
-
 
         public override async Task ConnectAsync()
         {
-            _tcpClient = new TcpTransportChannel(new TcpClient());
+            _tcpClient = new TcpTransportChannel(this, new TcpClient());
             await _tcpClient.Client.ConnectAsync(_address, _port);
-            RegisterMessageCallback(_tcpClient, data => HandleReceivedData(data), false);
-            RunReaderLoop(_tcpClient);
+            RegisterMessageCallback(_tcpClient, HandleReceivedData, false);
+            RunReaderLoop(_tcpClient, () => OnDisconnected(new ChannelConnectedEventArgs<TcpTransportChannel>(_tcpClient))); 
         }     
     }
-
 }

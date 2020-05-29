@@ -3,37 +3,29 @@ using System.Threading.Tasks;
 
 namespace AdvancedRpcLib
 {
-    
-
     public interface IRpcSerializer
     {
-
         byte[] SerializeMessage<T>(T message) where T : RpcMessage;
-
 
         T DeserializeMessage<T>(ReadOnlySpan<byte> data) where T : RpcMessage;
         object ChangeType(object value, Type targetType);
     }
 
-    
     public interface IRpcChannel
     {
         object CallRpcMethod(int instanceId, string methodName, Type[] argTypes, object[] args, Type resultType);
 
         void RemoveInstance(int localInstanceId, int remoteInstanceId);
-
-
     }
 
-
-    public interface IRpcServerChannel
+    public interface IRpcServerChannel : IDisposable
     {
         Task ListenAsync();
 
         IRpcObjectRepository ObjectRepository { get; }
     }
 
-    public interface IRpcClientChannel 
+    public interface IRpcClientChannel : IDisposable
     {
         Task ConnectAsync();
 
@@ -45,17 +37,12 @@ namespace AdvancedRpcLib
         /// <returns></returns>
         Task<TResult> GetServerObjectAsync<TResult>();
 
-
         IRpcObjectRepository ObjectRepository { get; }
     }
 
     public class RpcFailedException : Exception
     {
-        public RpcFailedException() : base()
-        {
-        }
-
-        protected RpcFailedException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context) : base(info, context)
+        public RpcFailedException() 
         {
         }
 

@@ -7,6 +7,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using AdvancedRpcLib.Helpers;
 using Newtonsoft.Json.Linq;
 
 namespace AdvancedRpcLib.Channels
@@ -34,7 +35,6 @@ namespace AdvancedRpcLib.Channels
                 _rpcChannel = rpcChannel;
                 _channel = channel;
             }
-
 
             public object CallRpcMethod(int instanceId, string methodName, Type[] argTypes, object[] args, Type resultType)
             {
@@ -209,7 +209,6 @@ namespace AdvancedRpcLib.Channels
                     var m = _serializer.DeserializeMessage<RpcMethodCallMessage>(data);
                     try
                     {
-
                         var obj = _localRepository.GetInstance(m.InstanceId);
 
                         var targetMethod = obj.GetType().GetMethod(m.MethodName);
@@ -238,9 +237,7 @@ namespace AdvancedRpcLib.Channels
                             }
                         }
 
-
                         var result = targetMethod.Invoke(obj, args);
-
 
                         resultMessage = new RpcCallResultMessage
                         {
@@ -299,7 +296,7 @@ namespace AdvancedRpcLib.Channels
             return false;
         }
 
-        protected void RunReaderLoop(TChannel channel)
+        protected void RunReaderLoop(TChannel channel, Action onDone)
         {
             void NotifyMessage(byte[] data)
             {
@@ -312,7 +309,6 @@ namespace AdvancedRpcLib.Channels
                         {
                             Console.WriteLine("Failed to process message");
                         }
-
                     }
                     catch (Exception ex)
                     {
@@ -323,24 +319,24 @@ namespace AdvancedRpcLib.Channels
 
             Task.Run(delegate
             {
-                var reader = new BinaryReader(channel.GetStream(), Encoding.UTF8, true);
-                var smallMessageBuffer = new byte[ushort.MaxValue];
-
-
-
-                while (true)
+                try
                 {
-                    var type = (RpcChannelMessageType)reader.ReadByte();
-                    switch (type)
+                    var reader = new BinaryReader(channel.GetStream(), Encoding.UTF8, true);
+                    var smallMessageBuffer = new byte[ushort.MaxValue];
+
+                    while (true)
                     {
-                        case RpcChannelMessageType.LargeMessage:
+                        var type = (RpcChannelMessageType) reader.ReadByte();
+                        switch (type)
+                        {
+                            case RpcChannelMessageType.LargeMessage:
                             {
                                 var msgLen = reader.ReadInt32();
                                 var data = reader.ReadBytes(msgLen);
                                 NotifyMessage(data);
                                 break;
                             }
-                        case RpcChannelMessageType.Message:
+                            case RpcChannelMessageType.Message:
                             {
                                 var msgLen = reader.ReadUInt16();
                                 int offset = 0;
@@ -356,9 +352,18 @@ namespace AdvancedRpcLib.Channels
 
                                 break;
                             }
-                        default:
-                            throw new NotSupportedException("Invalid message type encountered");
+                            default:
+                                throw new NotSupportedException("Invalid message type encountered");
+                        }
                     }
+                }
+                catch (Exception ex)
+                {
+                    // TODO: logging
+                }
+                finally
+                {
+                    onDone();
                 }
             });
         }

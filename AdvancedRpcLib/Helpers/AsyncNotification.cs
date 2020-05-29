@@ -1,16 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace AdvancedRpcLib
+namespace AdvancedRpcLib.Helpers
 {
-
-
- 
-
-   
-
     class AsyncNotification
     {
         public delegate bool DataReceivedDelegate(ReadOnlySpan<byte> data);
@@ -21,11 +13,9 @@ namespace AdvancedRpcLib
         {
             lock (_callbacks)
             {
-                _callbacks.Add(Tuple.Create<DataReceivedDelegate, bool>(callback, autoremove));
+                _callbacks.Add(Tuple.Create(callback, autoremove));
             }
         }
-
-
 
         public bool Notify(ReadOnlySpan<byte> data)
         {
@@ -46,7 +36,6 @@ namespace AdvancedRpcLib
                             {
                                 _callbacks.Remove(callbacks[i]);
                             }
-
                         }
                         return true;
                     }
@@ -56,9 +45,7 @@ namespace AdvancedRpcLib
                     Console.WriteLine("Error in message notification: " + ex);
                 }
             }
-            
             return false;
         }
     }
-
 }

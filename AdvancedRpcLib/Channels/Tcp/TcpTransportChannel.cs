@@ -1,15 +1,18 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using System.Net.Sockets;
 
 namespace AdvancedRpcLib.Channels.Tcp
 {
     public class TcpTransportChannel : ITransportChannel
     {
-        public TcpTransportChannel(TcpClient client)
+        public TcpTransportChannel(RpcChannel<TcpTransportChannel> channel, TcpClient client)
         {
+            Channel = channel ?? throw new ArgumentNullException(nameof(channel));
             Client = client ?? throw new System.ArgumentNullException(nameof(client));
         }
 
+        public RpcChannel<TcpTransportChannel> Channel { get; }
         public TcpClient Client { get; }
 
         public void Dispose()
@@ -23,5 +26,4 @@ namespace AdvancedRpcLib.Channels.Tcp
             return Client.GetStream();
         }
     }
-
 }

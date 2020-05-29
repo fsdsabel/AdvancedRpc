@@ -24,7 +24,6 @@ namespace AdvancedRpcLib.Serializers
 
                 return result;
             }
-                
         }
 
         public object ChangeType(object value, Type targetType)
@@ -37,5 +36,4 @@ namespace AdvancedRpcLib.Serializers
             return Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(message));
         }
     }
-
 }

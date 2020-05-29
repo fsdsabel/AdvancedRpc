@@ -387,6 +387,32 @@ namespace AdvancedRpcLib.UnitTests
             (await Init<IInternalInterface>(o, type)).ShouldNotBeVisible();
         }
 
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
+        [ExpectedException(typeof(RpcFailedException))]
+        public async Task ServerDownThrowsException(ChannelType type)
+        {
+            var o = new TestObject();
+            var rpc = await Init<ITestObject>(o, type);
+            
+            _serverChannel.Dispose();
+            rpc.CallMe();
+        }
+
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
+        [ExpectedException(typeof(RpcFailedException))]
+        public async Task ClientDownThrowsException(ChannelType type)
+        {
+            var o = new TestObject();
+            var rpc = await Init<ITestObject>(o, type);
+
+            _clientChannel.Dispose();
+            rpc.CallMe();
+        }
+
         [Serializable]
         public class CustomEventArgs : EventArgs
         {

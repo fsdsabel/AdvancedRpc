@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace AdvancedRpcLib.Channels
 {
-    public abstract class RpcServerChannel<TChannel> : RpcChannel<TChannel>, IRpcServerChannel, IDisposable
+    public abstract class RpcServerChannel<TChannel> : RpcChannel<TChannel>, IRpcServerChannel
          where TChannel : class, ITransportChannel
     {
         private readonly List<WeakReference<TChannel>> _createdChannels = new List<WeakReference<TChannel>>();
@@ -18,6 +18,8 @@ namespace AdvancedRpcLib.Channels
         {
         }
 
+        public event EventHandler<ChannelConnectedEventArgs<TChannel>> ClientConnected;
+        public event EventHandler<ChannelConnectedEventArgs<TChannel>> ClientDisconnected;
 
         public IRpcObjectRepository ObjectRepository => _localRepository;
 
@@ -53,21 +55,31 @@ namespace AdvancedRpcLib.Channels
             return false;
         }
 
-
         protected void AddChannel(TChannel channel)
         {
             _createdChannels.Add(new WeakReference<TChannel>(channel));
+            OnClientConnected(new ChannelConnectedEventArgs<TChannel>(channel));
         }
 
         protected void PurgeOldChannels()
         {
             foreach (var client in _createdChannels.ToArray())
             {
-                if (!client.TryGetTarget(out var aliveClient))
+                if (!client.TryGetTarget(out _))
                 {
                     _createdChannels.Remove(client);
                 }
             }
+        }
+
+        protected virtual void OnClientConnected(ChannelConnectedEventArgs<TChannel> e)
+        {
+            ClientConnected?.Invoke(this, e);
+        }
+
+        protected virtual void OnClientDisconnected(ChannelConnectedEventArgs<TChannel> e)
+        {
+            ClientDisconnected?.Invoke(this, e);
         }
 
         protected virtual void Dispose(bool disposing)
@@ -89,7 +101,5 @@ namespace AdvancedRpcLib.Channels
         {
             Dispose(true);
         }
-
     }
-
 }

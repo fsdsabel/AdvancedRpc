@@ -15,6 +15,7 @@ namespace AdvancedRpcLib.Channels
         {
         }
 
+        public event EventHandler<ChannelConnectedEventArgs<TChannel>> Disconnected;
 
         public IRpcObjectRepository ObjectRepository => GetRemoteRepository(TransportChannel);
 
@@ -43,10 +44,14 @@ namespace AdvancedRpcLib.Channels
             }
         }
 
+        protected virtual void OnDisconnected(ChannelConnectedEventArgs<TChannel> e)
+        {
+            Disconnected?.Invoke(this, e);
+        }
+
         public void Dispose()
         {
             TransportChannel.Dispose();
         }
     }
-
 }

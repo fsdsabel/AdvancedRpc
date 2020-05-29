@@ -7,8 +7,6 @@ using AdvancedRpcLib.Serializers;
 
 namespace AdvancedRpcLib
 {
-
-
     public class RpcObjectRepository : IRpcObjectRepository
     {
         private readonly bool _clientRepository;
@@ -18,7 +16,6 @@ namespace AdvancedRpcLib
         {
             _clientRepository = clientRepository;
         }
-
 
         public string CreateTypeId<T>()
         {
@@ -178,9 +175,7 @@ namespace AdvancedRpcLib
             var delObj = Activator.CreateInstance(type, channel);
 
             return Delegate.CreateDelegate(delegateType, delObj, "Invoke");
-
         }
-
 
         private FieldBuilder CreateConstructor(TypeBuilder tb)
         {
@@ -244,7 +239,6 @@ namespace AdvancedRpcLib
                 }
             }
 
-
             
             var type = tb.CreateTypeInfo().AsType();
             /*
@@ -262,10 +256,8 @@ namespace AdvancedRpcLib
                 method.ReturnType, margs);
             var il = mb.GetILGenerator();
 
-
             il.Emit(OpCodes.Ldarg_0);
             il.Emit(OpCodes.Ldfld, invokerField);
-
 
             il.Emit(OpCodes.Ldc_I4, remoteInstanceId);
             il.Emit(OpCodes.Ldstr, method.Name);
@@ -284,7 +276,6 @@ namespace AdvancedRpcLib
                 il.Emit(OpCodes.Stelem_Ref);
                 ai++;
             }
-
 
             il.Emit(OpCodes.Ldc_I4, margs.Length);
             il.Emit(OpCodes.Newarr, typeof(object));
@@ -330,8 +321,5 @@ namespace AdvancedRpcLib
                 tb.DefineMethodOverride(mb, method);
             }
         }
-
-        
     }
-
 }

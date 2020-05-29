@@ -6,12 +6,10 @@ using System.Threading.Tasks;
 
 namespace AdvancedRpcLib.Channels.NamedPipe
 {
-
     public class NamedPipeRpcServerChannel : RpcServerChannel<NamedPipeTransportChannel>
     {
-        private NamedPipeServerStream _listener;
         private readonly string _pipeName;
-        private CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
+        private readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
 
         public NamedPipeRpcServerChannel(
             IRpcSerializer serializer,
@@ -38,12 +36,11 @@ namespace AdvancedRpcLib.Channels.NamedPipe
                     await pipe.WaitForConnectionAsync(_cancellationTokenSource.Token);
                     if (!_cancellationTokenSource.IsCancellationRequested)
                     {
-                        var client = new NamedPipeTransportChannel(pipe);
+                        var client = new NamedPipeTransportChannel(this, pipe);
                         PurgeOldChannels();
                         AddChannel(client);
                         RegisterMessageCallback(client, data => HandleReceivedData(client, data), false);
-                        //TODO: Verbindung schließen behandeln
-                        RunReaderLoop(client);
+                        RunReaderLoop(client, () => OnClientDisconnected(new ChannelConnectedEventArgs<NamedPipeTransportChannel>(client)));
                     }
                 }
             }, _cancellationTokenSource.Token);
