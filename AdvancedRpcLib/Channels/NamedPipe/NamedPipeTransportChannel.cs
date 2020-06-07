@@ -25,5 +25,15 @@ namespace AdvancedRpcLib.Channels.NamedPipe
         {
             return _pipeStream;
         }
+
+        internal string GetImpersonationUserName()
+        {
+            return (_pipeStream as NamedPipeServerStream)?.GetImpersonationUserName();
+        }
+
+        internal void RunAsClient(Action action)
+        {
+            (_pipeStream as NamedPipeServerStream)?.RunAsClient(() => action());
+        }
     }
 }

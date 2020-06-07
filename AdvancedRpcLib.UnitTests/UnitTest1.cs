@@ -1,11 +1,17 @@
 using System;
 using System.Collections.Generic;
+using System.IO.Pipes;
 using System.Net;
+using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Security.Principal;
 using System.Threading.Tasks;
+using AdvancedRpcLib.Channels;
 using AdvancedRpcLib.Channels.NamedPipe;
 using AdvancedRpcLib.Channels.Tcp;
 using AdvancedRpcLib.Serializers;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Microsoft.Win32.SafeHandles;
 
 namespace AdvancedRpcLib.UnitTests
 {
@@ -22,7 +28,8 @@ namespace AdvancedRpcLib.UnitTests
             NamedPipe
         }
 
-        private async Task<T> Init<T>(T instance, ChannelType type, IRpcSerializer serializer = null)
+        private async Task<T> Init<T>(T instance, ChannelType type, IRpcSerializer serializer = null, 
+            TokenImpersonationLevel tokenImpersonationLevel = TokenImpersonationLevel.None)
         {
             if (serializer == null)
             {
@@ -41,13 +48,7 @@ namespace AdvancedRpcLib.UnitTests
                         await server.ListenAsync();
 
 
-                        var client = _clientChannel = new TcpRpcClientChannel(
-                            serializer,
-                            new RpcMessageFactory(),
-                            IPAddress.Loopback,
-                            11234);
-
-                        await client.ConnectAsync();
+                        var client = _clientChannel = await CreateClient(type, serializer);
                         return await client.GetServerObjectAsync<T>();
                     }
                 case ChannelType.NamedPipe:
@@ -61,12 +62,7 @@ namespace AdvancedRpcLib.UnitTests
                         await server.ListenAsync();
 
 
-                        var client = _clientChannel = new NamedPipeRpcClientChannel(
-                            serializer,
-                            new RpcMessageFactory(),
-                            _pipeName);
-
-                        await client.ConnectAsync();
+                        var client = _clientChannel = await CreateClient(type, serializer, tokenImpersonationLevel);
                         return await client.GetServerObjectAsync<T>();
                     }
                 default:
@@ -76,6 +72,42 @@ namespace AdvancedRpcLib.UnitTests
 
         }
 
+        private async Task<IRpcClientChannel> CreateClient(ChannelType channelType, IRpcSerializer serializer = null,
+            TokenImpersonationLevel tokenImpersonationLevel = TokenImpersonationLevel.None)
+        {
+            if (serializer == null)
+            {
+                serializer = new BinaryRpcSerializer();
+            }
+            switch (channelType)
+            {
+                case ChannelType.Tcp:
+                {
+
+                    var client = new TcpRpcClientChannel(
+                        serializer,
+                        new RpcMessageFactory(),
+                        IPAddress.Loopback,
+                        11234);
+
+                    await client.ConnectAsync();
+                    return client;
+                }
+                case ChannelType.NamedPipe:
+                {
+                    var client = _clientChannel = new NamedPipeRpcClientChannel(
+                        serializer,
+                        new RpcMessageFactory(),
+                        _pipeName,
+                        tokenImpersonationLevel);
+
+                    await client.ConnectAsync();
+                    return client;
+                }
+                default:
+                    throw new NotSupportedException();
+            }
+        }
 
 
         [TestCleanup]
@@ -231,6 +263,42 @@ namespace AdvancedRpcLib.UnitTests
             o.InvokeTestEvent();
 
             Assert.IsTrue(eventHandlerCalled);
+        }
+
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
+        public async Task EventHandlersWithMultipleClientsWork(ChannelType type)
+        {
+            bool eventHandlerCalled = false;
+            bool eventHandler2Called = false;
+            var o = new TestObject();
+            var proxy = await Init<ITestObject>(o, type);
+
+
+            var client2 = _clientChannel = await CreateClient(type);
+
+            await client2.ConnectAsync();
+            var proxy2 = await client2.GetServerObjectAsync<ITestObject>();
+
+            proxy.TestEvent += (s, e) =>
+            {
+                eventHandlerCalled = true;
+                Assert.AreEqual("test", e.Data);
+                // try to call back
+                Assert.AreEqual("data", proxy.Reflect("data"));
+            };
+
+
+            proxy2.TestEvent += (s, e) =>
+            {
+                eventHandler2Called = true;
+            };
+
+            o.InvokeTestEvent();
+
+            Assert.IsTrue(eventHandlerCalled);
+            Assert.IsTrue(eventHandler2Called);
         }
 
         [DataTestMethod]
@@ -413,6 +481,26 @@ namespace AdvancedRpcLib.UnitTests
             rpc.CallMe();
         }
 
+        [TestMethod]
+        public async Task NamedPipeServerContextObjectGetImpersonationUserNameWorks()
+        {
+            var o = new NamedPipeContextObject();
+            var rpc = await Init<IContextObject>(o, ChannelType.NamedPipe, tokenImpersonationLevel: TokenImpersonationLevel.Identification);
+
+            var remoteUser = rpc.UserName;
+            Assert.AreEqual(Environment.UserName, remoteUser);
+        }
+
+        [TestMethod]
+        public async Task NamedPipeServerContextObjectRunAsClientWorks()
+        {
+            var o = new NamedPipeContextObject();
+            var rpc = await Init<IContextObject>(o, ChannelType.NamedPipe, tokenImpersonationLevel: TokenImpersonationLevel.Impersonation);
+
+            var remoteUser = rpc.FullUserName;
+            Assert.AreEqual(Environment.UserDomainName + "\\" + Environment.UserName, remoteUser);
+        }
+
         [Serializable]
         public class CustomEventArgs : EventArgs
         {
@@ -526,6 +614,32 @@ namespace AdvancedRpcLib.UnitTests
             public void ShouldNotBeVisible()
             {
             }
+        }
+
+        public interface IContextObject
+        {
+            string UserName { get; }
+
+            string FullUserName { get; }
+        }
+
+        class NamedPipeContextObject : IContextObject, IRpcServerContextObject
+        {
+            public string UserName => RpcChannel.GetImpersonationUserName();
+            public string FullUserName => GetRemoteIdentity().Name;
+
+            public ITransportChannel RpcChannel { get; set; }
+
+
+            
+            private WindowsIdentity GetRemoteIdentity()
+            {
+                WindowsIdentity result = null;
+                RpcChannel.RunAsClient(()=> result = WindowsIdentity.GetCurrent());
+                return result;
+            }
+
+
         }
     }
 }

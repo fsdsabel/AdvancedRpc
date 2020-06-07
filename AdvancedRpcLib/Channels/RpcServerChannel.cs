@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace AdvancedRpcLib.Channels
 {
@@ -13,8 +14,9 @@ namespace AdvancedRpcLib.Channels
            IRpcSerializer serializer,
            IRpcMessageFactory messageFactory,
            IRpcObjectRepository localRepository = null,
-           Func<IRpcObjectRepository> remoteRepository = null)
-           : base(serializer, messageFactory, RpcChannelType.Server, localRepository, remoteRepository)
+           Func<IRpcObjectRepository> remoteRepository = null,
+           ILoggerFactory loggerFactory = null)
+           : base(serializer, messageFactory, RpcChannelType.Server, localRepository, remoteRepository, loggerFactory)
         {
         }
 

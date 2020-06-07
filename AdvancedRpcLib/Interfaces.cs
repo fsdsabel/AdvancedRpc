@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Threading.Tasks;
+using AdvancedRpcLib.Channels;
 
 namespace AdvancedRpcLib
 {
@@ -26,9 +27,14 @@ namespace AdvancedRpcLib
         IRpcObjectRepository ObjectRepository { get; }
     }
 
+    public interface IRpcServerContextObject
+    {
+        ITransportChannel RpcChannel { set; }
+    }
+
     public interface IRpcClientChannel : IDisposable
     {
-        Task ConnectAsync();
+        Task ConnectAsync(TimeSpan timeout = default);
 
         /// <summary>
         /// 

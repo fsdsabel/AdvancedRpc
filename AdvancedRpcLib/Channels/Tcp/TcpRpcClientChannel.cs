@@ -1,7 +1,10 @@
 ﻿using System;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using Nito.AsyncEx;
 
 namespace AdvancedRpcLib.Channels.Tcp
 {
@@ -17,8 +20,9 @@ namespace AdvancedRpcLib.Channels.Tcp
             IRpcMessageFactory messageFactory,
             IPAddress address, int port,
             IRpcObjectRepository localRepository = null,
-            Func<IRpcObjectRepository> remoteRepository = null)
-            : base(serializer, messageFactory, localRepository, remoteRepository)
+            Func<IRpcObjectRepository> remoteRepository = null,
+            ILoggerFactory loggerFactory = null)
+            : base(serializer, messageFactory, localRepository, remoteRepository, loggerFactory)
         {
             _address = address;
             _port = port;
@@ -26,10 +30,14 @@ namespace AdvancedRpcLib.Channels.Tcp
 
         protected override TcpTransportChannel TransportChannel => _tcpClient;
 
-        public override async Task ConnectAsync()
+        public override async Task ConnectAsync(TimeSpan timeout = default)
         {
+            timeout = timeout == default ? TimeSpan.MaxValue : timeout;
             _tcpClient = new TcpTransportChannel(this, new TcpClient());
-            await _tcpClient.Client.ConnectAsync(_address, _port);
+            using (var cts = new CancellationTokenSource(timeout))
+            {
+                await _tcpClient.Client.ConnectAsync(_address, _port).WaitAsync(cts.Token);
+            }
             RegisterMessageCallback(_tcpClient, HandleReceivedData, false);
             RunReaderLoop(_tcpClient, () => OnDisconnected(new ChannelConnectedEventArgs<TcpTransportChannel>(_tcpClient))); 
         }     

@@ -5,6 +5,15 @@
     <TargetFrameworks>netcoreapp3.1;net48</TargetFrameworks>
   </PropertyGroup>
 
+  <ItemGroup Condition="'$(TargetFramework)' != 'net48'">
+    <PackageReference Include="System.IO.Pipes.AccessControl" Version="4.5.1" />
+    <PackageReference Include="System.Security.Principal.Windows" Version="4.7.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="3.1.4" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\AdvancedRpcLib\AdvancedRpcLib.csproj" />
     <ProjectReference Include="..\AdvancedRpc\AdvancedRpc.csproj" />

@@ -3,6 +3,7 @@ using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace AdvancedRpcLib.Channels.Tcp
 {
@@ -18,8 +19,9 @@ namespace AdvancedRpcLib.Channels.Tcp
             IRpcMessageFactory messageFactory,
             IPAddress address, int port,
             IRpcObjectRepository localRepository = null,
-            Func<IRpcObjectRepository> remoteRepository = null)
-            : base(serializer, messageFactory, localRepository, remoteRepository)
+            Func<IRpcObjectRepository> remoteRepository = null,
+            ILoggerFactory loggerFactory = null)
+            : base(serializer, messageFactory, localRepository, remoteRepository, loggerFactory)
         {
             _address = address;
             _port = port;

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -126,10 +127,14 @@ namespace AdvancedRpcLib.Channels
             RpcCallResultMessage response;
             try
             {
+                LogTrace($"Calling remote method '{methodName}' on object '{instanceId}'");
+
                 response = SendMessageAsync<RpcCallResultMessage>(channel,
                         () => MessageFactory.CreateMethodCallMessage(LocalRepository, instanceId, methodName,
                             argTypes, args))
                     .GetAwaiter().GetResult();
+
+                LogTrace($"Received response for calling '{methodName}' on object '{instanceId}'");
 
                 if (response.ResultType == RpcType.Proxy)
                 {
@@ -201,6 +206,12 @@ namespace AdvancedRpcLib.Channels
             return new RpcChannelWrapper(this, channel);
         }
 
+        [Conditional("DEBUG")]
+        private void LogTrace(string message)
+        {
+            _logger?.LogTrace(message);
+        }
+
         protected bool HandleRemoteMessage(TChannel channel, byte[] data, RpcMessage msg)
         {
             switch (msg.Type)
@@ -208,9 +219,12 @@ namespace AdvancedRpcLib.Channels
                 case RpcMessageType.CallMethod:
                 {
                     RpcCallResultMessage resultMessage;
+                    IRpcServerContextObject remoteRpcServerContextObject = null;
                     var m = Serializer.DeserializeMessage<RpcMethodCallMessage>(data);
                     try
                     {
+                        LogTrace($"Received method call '{m.MethodName}' with instance id '{m.InstanceId}'");
+                            
                         var obj = LocalRepository.GetInstance(m.InstanceId);
 
                         var targetMethod = obj.GetType().GetMethod(m.MethodName);
@@ -218,6 +232,9 @@ namespace AdvancedRpcLib.Channels
                         {
                             throw new MissingMethodException(obj.GetType().FullName, m.MethodName);
                         }
+
+                        LogTrace($"Resolved method '{targetMethod}' on object '{obj.GetType()}'");
+
                         var targetParameterTypes = targetMethod.GetParameters().Select(p => p.ParameterType).ToArray();
                         var args = new object[m.Arguments.Length];
                         for (int i = 0; i < m.Arguments.Length; i++)
@@ -231,12 +248,10 @@ namespace AdvancedRpcLib.Channels
                                     args[i] = GetRemoteRepository(channel).GetProxyObject(
                                         GetRpcChannelForClient(channel),
                                         targetParameterTypes[i],
-                                        (int)Serializer.ChangeType(m.Arguments[i].Value, typeof(int)));
+                                        (int) Serializer.ChangeType(m.Arguments[i].Value, typeof(int)));
                                     break;
                                 case RpcType.Serialized:
                                     var type = Type.GetType(m.Arguments[i].TypeId);
-                                    /*args[i] = Serializer.DeserializeObject(Serializer.SerializeObject(m.Arguments[i].Value),
-                                        type);*/
                                     args[i] = Serializer.ChangeType(m.Arguments[i].Value, type);
                                     break;
                                 default:
@@ -244,7 +259,17 @@ namespace AdvancedRpcLib.Channels
                             }
                         }
 
+
+                        remoteRpcServerContextObject = obj as IRpcServerContextObject;
+                        if (remoteRpcServerContextObject != null)
+                        {
+                            LogTrace($"Object {m.InstanceId} implements IRpcServerContextObject, setting context");
+                            remoteRpcServerContextObject.RpcChannel = channel;
+                        }
+
                         var result = targetMethod.Invoke(obj, args);
+
+                        LogTrace("Method called without exception.");
 
                         resultMessage = new RpcCallResultMessage
                         {
@@ -263,16 +288,18 @@ namespace AdvancedRpcLib.Channels
                     }
                     catch (TargetInvocationException ex)
                     {
+                        LogTrace($"Method call resulted in exception: {ex}");
                         resultMessage = new RpcCallResultMessage
                         {
                             CallId = m.CallId,
                             Type = RpcMessageType.Exception,
                             ResultType = RpcType.Serialized,
-                            Result = ex.InnerException 
+                            Result = ex.InnerException
                         };
                     }
                     catch (Exception ex)
                     {
+                        _logger?.LogError($"Failed to process message call: {ex}");
                         resultMessage = new RpcCallResultMessage
                         {
                             CallId = m.CallId,
@@ -281,14 +308,26 @@ namespace AdvancedRpcLib.Channels
                             Result = ex
                         };
                     }
-                    
+                    finally
+                    {
+                        if (remoteRpcServerContextObject != null)
+                        {
+                            LogTrace($"Object {m.InstanceId} implements IRpcServerContextObject, removing context"); 
+                            remoteRpcServerContextObject.RpcChannel = null;
+                        }
+                    }
+
+                    LogTrace("Serialising response.");
                     var response = Serializer.SerializeMessage(resultMessage);
+                    LogTrace("Sending response.");
                     SendMessage(channel.GetStream(), response);
+                    LogTrace("Sent response");
                     return true;
                 }
                 case RpcMessageType.RemoveInstance:
                     {
                         var m = Serializer.DeserializeMessage<RpcRemoveInstanceMessage>(data);
+                        LogTrace($"Removing instance '{m.InstanceId}'");
                         LocalRepository.RemoveInstance(m.InstanceId);
 
                         var response = Serializer.SerializeMessage(new RpcMessage
@@ -353,6 +392,10 @@ namespace AdvancedRpcLib.Channels
                                 NotifyMessage(data);
                                 break;
                             }
+                            case (RpcChannelMessageType) (-1):
+                                // stream closed
+                                _logger?.LogTrace("Remote channel closed connection.");
+                                return;
                             default:
                                 throw new NotSupportedException("Invalid message type encountered");
                         }

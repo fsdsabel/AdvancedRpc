@@ -21,7 +21,7 @@ namespace AdvancedRpcLib.Channels
 
         public IRpcObjectRepository ObjectRepository => GetRemoteRepository(TransportChannel);
 
-        public abstract Task ConnectAsync();
+        public abstract Task ConnectAsync(TimeSpan timeout = default);
 
         protected abstract TChannel TransportChannel { get; }
 
