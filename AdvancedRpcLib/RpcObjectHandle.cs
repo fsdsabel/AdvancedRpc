@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Threading;
+using AdvancedRpcLib.Channels;
 
 namespace AdvancedRpcLib
 {
@@ -48,6 +49,7 @@ namespace AdvancedRpcLib
         }
 
         public Type[] InterfaceTypes { get; private set; }
+        public ITransportChannel AssociatedChannel { get; set; }
 
         public override int GetHashCode()
         {

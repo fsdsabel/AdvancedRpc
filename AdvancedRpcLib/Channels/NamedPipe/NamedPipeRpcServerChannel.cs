@@ -61,7 +61,6 @@ namespace AdvancedRpcLib.Channels.NamedPipe
                     if (!_cancellationTokenSource.IsCancellationRequested)
                     {
                         var client = new NamedPipeTransportChannel(this, pipe);
-                        PurgeOldChannels();
                         AddChannel(client);
                         RegisterMessageCallback(client, data => HandleReceivedData(client, data), false);
                         RunReaderLoop(client, () => OnClientDisconnected(new ChannelConnectedEventArgs<NamedPipeTransportChannel>(client)));

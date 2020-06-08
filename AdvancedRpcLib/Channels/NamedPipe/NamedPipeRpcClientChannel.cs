@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO.Pipes;
 using System.Security.Principal;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
@@ -32,7 +33,7 @@ namespace AdvancedRpcLib.Channels.NamedPipe
 
         public override async Task ConnectAsync(TimeSpan timeout = default)
         {
-            timeout = timeout == default ? TimeSpan.MaxValue : timeout;
+            timeout = timeout == default ? Timeout.InfiniteTimeSpan : timeout;
             _logger?.LogDebug($"Connecting to pipe '{_pipeName}' with timeout '{timeout}'.");
             var stream = new NamedPipeClientStream(".", _pipeName, PipeDirection.InOut, PipeOptions.Asynchronous, 
                 _tokenImpersonationLevel);

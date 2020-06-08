@@ -32,7 +32,7 @@ namespace AdvancedRpcLib.Channels.Tcp
 
         public override async Task ConnectAsync(TimeSpan timeout = default)
         {
-            timeout = timeout == default ? TimeSpan.MaxValue : timeout;
+            timeout = timeout == default ? Timeout.InfiniteTimeSpan : timeout;
             _tcpClient = new TcpTransportChannel(this, new TcpClient());
             using (var cts = new CancellationTokenSource(timeout))
             {

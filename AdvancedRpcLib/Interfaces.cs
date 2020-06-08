@@ -66,7 +66,7 @@ namespace AdvancedRpcLib
     {
         RpcGetServerObjectMessage CreateGetServerObjectMessage(string typeId);
 
-        RpcMethodCallMessage CreateMethodCallMessage(IRpcObjectRepository localRepository,
+        RpcMethodCallMessage CreateMethodCallMessage(ITransportChannel channel, IRpcObjectRepository localRepository,
             int instanceId, string methodName, Type[] argumentTypes, object[] arguments);
 
         RpcRemoveInstanceMessage CreateRemoveInstanceMessage(int instanceId);
@@ -88,8 +88,10 @@ namespace AdvancedRpcLib
 
         object GetInstance(int instanceId);
 
-        RpcObjectHandle AddInstance(Type interfaceType, object instance);
+        RpcObjectHandle AddInstance(Type interfaceType, object instance, ITransportChannel associatedChannel = null);
 
         void RemoveInstance(int instanceId);
+
+        void RemoveAllForChannel(ITransportChannel channel);
     }
 }

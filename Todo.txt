@@ -5,3 +5,4 @@
 - [done] nur public interface methods
 - ping pong -> letzten Client detektieren -> Serverevent
 - [done] IPC-Implementierung -> Generalisieren der Channel-Implementierung
+- Streaming of larger Datasets (IEnumerable results)

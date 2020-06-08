@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
+using AdvancedRpcLib.Channels;
 
 namespace AdvancedRpcLib
 {
@@ -77,8 +78,9 @@ namespace AdvancedRpcLib
             }
         }
 
-        public RpcObjectHandle AddInstance(Type interfaceType, object instance)
+        public RpcObjectHandle AddInstance(Type interfaceType, object instance, ITransportChannel associatedChannel = null)
         {
+            if(!_clientRepository && associatedChannel == null) throw new ArgumentNullException(nameof(associatedChannel));
             lock (_rpcObjects)
             {
                 Purge();
@@ -92,7 +94,8 @@ namespace AdvancedRpcLib
                 });
                 if (existing == null)
                 {
-                    var v = new RpcObjectHandle(instance, !_clientRepository); // always pin on server side as we never know when the client needs us again
+                    var v = new RpcObjectHandle(instance,/* !_clientRepository*/true); // always pin on server side as we never know when the client needs us again
+                    v.AssociatedChannel = associatedChannel;
                     _rpcObjects.Add(v);
                     return v;
                 }
@@ -126,6 +129,17 @@ namespace AdvancedRpcLib
                 if (toRemove != null)
                 {
                     _rpcObjects.Remove(toRemove);
+                }
+            }
+        }
+
+        public void RemoveAllForChannel(ITransportChannel channel)
+        {
+            lock (_rpcObjects)
+            {
+                foreach (var obj in _rpcObjects.Where(o => o.AssociatedChannel == channel).ToArray())
+                {
+                    _rpcObjects.Remove(obj);
                 }
             }
         }
@@ -320,5 +334,19 @@ namespace AdvancedRpcLib
                 tb.DefineMethodOverride(mb, method);
             }
         }
+
+#if DEBUG
+        // make sure we don't hold any references to objects anymore
+        ~RpcObjectRepository()
+        {
+            GC.Collect(2);
+            GC.WaitForPendingFinalizers();
+            Purge();
+            if (_rpcObjects.Where(r=>r.AssociatedChannel != null).Any())
+            {
+                throw new Exception("RPC Object count should be 0");
+            }
+        }
+#endif
     }
 }

@@ -16,7 +16,7 @@ using Microsoft.Win32.SafeHandles;
 namespace AdvancedRpcLib.UnitTests
 {
     [TestClass]
-    public class UnitTest1
+    public partial class RpcTests
     {
         private IRpcServerChannel _serverChannel;
         private IRpcClientChannel _clientChannel;

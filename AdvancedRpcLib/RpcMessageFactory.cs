@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Reflection;
 using System.Threading;
+using AdvancedRpcLib.Channels;
 
 namespace AdvancedRpcLib
 {
@@ -19,7 +20,7 @@ namespace AdvancedRpcLib
             };
         }
 
-        public RpcMethodCallMessage CreateMethodCallMessage(IRpcObjectRepository localRepository,
+        public RpcMethodCallMessage CreateMethodCallMessage(ITransportChannel channel, IRpcObjectRepository localRepository,
             int instanceId, string methodName, Type[] argumentTypes, object[] arguments)
         {
             return new RpcMethodCallMessage
@@ -46,7 +47,7 @@ namespace AdvancedRpcLib
                     }
                     else
                     {
-                        a = localRepository.AddInstance(argumentTypes[idx], a).InstanceId;
+                        a = localRepository.AddInstance(argumentTypes[idx], a, channel).InstanceId;
                     }
 
                     return new RpcArgument

@@ -8,7 +8,7 @@ namespace AdvancedRpcLib.Channels
     public abstract class RpcServerChannel<TChannel> : RpcChannel<TChannel>, IRpcServerChannel
          where TChannel : class, ITransportChannel
     {
-        private readonly List<WeakReference<TChannel>> _createdChannels = new List<WeakReference<TChannel>>();
+        private readonly List<TChannel> _createdChannels = new List<TChannel>();
 
         protected RpcServerChannel(
            IRpcSerializer serializer,
@@ -59,20 +59,10 @@ namespace AdvancedRpcLib.Channels
 
         protected void AddChannel(TChannel channel)
         {
-            _createdChannels.Add(new WeakReference<TChannel>(channel));
+            _createdChannels.Add(channel);
             OnClientConnected(new ChannelConnectedEventArgs<TChannel>(channel));
         }
 
-        protected void PurgeOldChannels()
-        {
-            foreach (var client in _createdChannels.ToArray())
-            {
-                if (!client.TryGetTarget(out _))
-                {
-                    _createdChannels.Remove(client);
-                }
-            }
-        }
 
         protected virtual void OnClientConnected(ChannelConnectedEventArgs<TChannel> e)
         {
@@ -82,6 +72,8 @@ namespace AdvancedRpcLib.Channels
         protected virtual void OnClientDisconnected(ChannelConnectedEventArgs<TChannel> e)
         {
             ClientDisconnected?.Invoke(this, e);
+            LocalRepository.RemoveAllForChannel(e.TransportChannel);
+            _createdChannels.Remove(e.TransportChannel);
         }
 
         protected virtual void Dispose(bool disposing)
@@ -89,12 +81,9 @@ namespace AdvancedRpcLib.Channels
             if(disposing)
             {
                 Stop();
-                foreach (var client in _createdChannels)
+                foreach (var channel in _createdChannels.ToArray())
                 {
-                    if (client.TryGetTarget(out var aliveClient))
-                    {
-                        aliveClient.Dispose();
-                    }
+                    channel?.Dispose();
                 }
             }
         }

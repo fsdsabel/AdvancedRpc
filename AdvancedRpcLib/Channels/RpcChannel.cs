@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using AdvancedRpcLib.Helpers;
 using Microsoft.Extensions.Logging;
@@ -130,7 +131,7 @@ namespace AdvancedRpcLib.Channels
                 LogTrace($"Calling remote method '{methodName}' on object '{instanceId}'");
 
                 response = SendMessageAsync<RpcCallResultMessage>(channel,
-                        () => MessageFactory.CreateMethodCallMessage(LocalRepository, instanceId, methodName,
+                        () => MessageFactory.CreateMethodCallMessage(channel, LocalRepository, instanceId, methodName,
                             argTypes, args))
                     .GetAwaiter().GetResult();
 
@@ -227,7 +228,12 @@ namespace AdvancedRpcLib.Channels
                             
                         var obj = LocalRepository.GetInstance(m.InstanceId);
 
-                        var targetMethod = obj.GetType().GetMethod(m.MethodName);
+                        var targetMethod = obj.GetType().GetMethod(m.MethodName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+                        if (targetMethod == null)
+                        {
+                            targetMethod = FindExplicitInterfaceImplementation(obj.GetType(), m.MethodName);
+                        }
+
                         if (targetMethod == null)
                         {
                             throw new MissingMethodException(obj.GetType().FullName, m.MethodName);
@@ -281,7 +287,7 @@ namespace AdvancedRpcLib.Channels
                         if (targetMethod.ReturnType.IsInterface)
                         {
                             // create a proxy
-                            var handle = LocalRepository.AddInstance(targetMethod.ReturnType, result);
+                            var handle = LocalRepository.AddInstance(targetMethod.ReturnType, result, channel);
                             resultMessage.ResultType = RpcType.Proxy;
                             resultMessage.Result = handle.InstanceId;
                         }
@@ -340,6 +346,13 @@ namespace AdvancedRpcLib.Channels
                     }
             }
             return false;
+        }
+
+        private MethodInfo FindExplicitInterfaceImplementation(Type type, string methodName)
+        {
+            var method = type.GetMethods(BindingFlags.NonPublic | BindingFlags.Instance)
+                .FirstOrDefault(m => m.IsPrivate && m.IsFinal && m.Name.EndsWith("." + methodName)); // explicit interface implementation
+            return method;
         }
 
         protected void RunReaderLoop(TChannel channel, Action onDone)

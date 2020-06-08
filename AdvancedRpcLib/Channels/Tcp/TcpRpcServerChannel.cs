@@ -39,7 +39,6 @@ namespace AdvancedRpcLib.Channels.Tcp
                 while (true)
                 {
                     var client = new TcpTransportChannel(this, _listener.AcceptTcpClient());
-                    PurgeOldChannels();
                     AddChannel(client);
                     RegisterMessageCallback(client, data => HandleReceivedData(client, data), false);
                     
