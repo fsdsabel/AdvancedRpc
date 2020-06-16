@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
 namespace AdvancedRpcLib.Channels
 {
-    public abstract class RpcServerChannel<TChannel> : RpcChannel<TChannel>, IRpcServerChannel
+    public abstract class RpcServerChannel<TChannel> : RpcChannel<TChannel>, IRpcServerChannel<TChannel>
          where TChannel : class, ITransportChannel
     {
         private readonly List<TChannel> _createdChannels = new List<TChannel>();
@@ -22,6 +23,18 @@ namespace AdvancedRpcLib.Channels
 
         public event EventHandler<ChannelConnectedEventArgs<TChannel>> ClientConnected;
         public event EventHandler<ChannelConnectedEventArgs<TChannel>> ClientDisconnected;
+
+
+        public IReadOnlyCollection<TChannel> ConnectedChannels
+        {
+            get
+            {
+                lock (_createdChannels)
+                {
+                    return new ReadOnlyCollection<TChannel>(_createdChannels);
+                }
+            }
+        }
 
         public IRpcObjectRepository ObjectRepository => LocalRepository;
 
@@ -59,7 +72,11 @@ namespace AdvancedRpcLib.Channels
 
         protected void AddChannel(TChannel channel)
         {
-            _createdChannels.Add(channel);
+            lock (_createdChannels)
+            {
+                _createdChannels.Add(channel);
+            }
+
             OnClientConnected(new ChannelConnectedEventArgs<TChannel>(channel));
         }
 
@@ -73,7 +90,10 @@ namespace AdvancedRpcLib.Channels
         {
             ClientDisconnected?.Invoke(this, e);
             LocalRepository.RemoveAllForChannel(e.TransportChannel);
-            _createdChannels.Remove(e.TransportChannel);
+            lock (_createdChannels)
+            {
+                _createdChannels.Remove(e.TransportChannel);
+            }
         }
 
         protected virtual void Dispose(bool disposing)
@@ -81,9 +101,12 @@ namespace AdvancedRpcLib.Channels
             if(disposing)
             {
                 Stop();
-                foreach (var channel in _createdChannels.ToArray())
+                lock (_createdChannels)
                 {
-                    channel?.Dispose();
+                    foreach (var channel in _createdChannels.ToArray())
+                    {
+                        channel?.Dispose();
+                    }
                 }
             }
         }

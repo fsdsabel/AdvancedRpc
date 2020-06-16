@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using AdvancedRpcLib.Channels;
 
@@ -25,6 +26,12 @@ namespace AdvancedRpcLib
         Task ListenAsync();
 
         IRpcObjectRepository ObjectRepository { get; }
+    }
+
+    public interface IRpcServerChannel<out TChannel> : IRpcServerChannel
+        where TChannel : class, ITransportChannel
+    {
+        IReadOnlyCollection<TChannel> ConnectedChannels { get; }
     }
 
     public interface IRpcServerContextObject

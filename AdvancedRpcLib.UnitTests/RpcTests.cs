@@ -482,6 +482,19 @@ namespace AdvancedRpcLib.UnitTests
         }
 
         [TestMethod]
+        public async Task ConnectedChannels_ReturnsCorrectChannelCount()
+        {
+            var o = new TestObject();
+            var rpc = await Init<ITestObject>(o, ChannelType.NamedPipe); // one client channel
+            using (await CreateClient(ChannelType.NamedPipe))
+            {
+                var channels = ((IRpcServerChannel<NamedPipeTransportChannel>) _serverChannel).ConnectedChannels;
+                
+                Assert.AreEqual(2, channels.Count);
+            }
+        }
+
+        [TestMethod]
         public async Task NamedPipeServerContextObjectGetImpersonationUserNameWorks()
         {
             var o = new NamedPipeContextObject();
