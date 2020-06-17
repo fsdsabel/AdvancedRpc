@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO.Pipes;
 using System.Net;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Threading.Tasks;
@@ -12,6 +13,8 @@ using AdvancedRpcLib.Channels.Tcp;
 using AdvancedRpcLib.Serializers;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Microsoft.Win32.SafeHandles;
+
+[assembly: InternalsVisibleTo("RpcDynamicTypes, PublicKey=00240000048000009400000006020000002400005253413100040000010001005D24F196FD9ACCF8894FFC5F6EA20B5EC25031179D601884ED16E337A9F6E48B8457839F02D5C15E37C97F7F0D9A1B918343B19351D931EB08EA6853349F823244746DEF9129DEF760AC196D7579E63C92E7ACEF48FE2587994F15FB35689EE32209E227D0F7E045882B0B64CCD303BB38C17F5F0F7C2EC8BC6E05494B9791B4")]
 
 namespace AdvancedRpcLib.UnitTests
 {
@@ -29,47 +32,65 @@ namespace AdvancedRpcLib.UnitTests
         }
 
         private async Task<T> Init<T>(T instance, ChannelType type, IRpcSerializer serializer = null, 
-            TokenImpersonationLevel tokenImpersonationLevel = TokenImpersonationLevel.None)
+            TokenImpersonationLevel tokenImpersonationLevel = TokenImpersonationLevel.None) where T:class
+        {
+            _serverChannel = await CreateServer(instance, type, serializer, tokenImpersonationLevel);
+            switch (type)
+            {
+                case ChannelType.Tcp:
+                {
+                    var client = _clientChannel = await CreateClient(type, serializer);
+                    return await client.GetServerObjectAsync<T>();
+                }
+                case ChannelType.NamedPipe:
+                {
+                    var client = _clientChannel = await CreateClient(type, serializer, tokenImpersonationLevel);
+                    return await client.GetServerObjectAsync<T>();
+                }
+                default:
+                    throw new NotSupportedException();
+            }
+        }
+
+        private async Task<IRpcServerChannel> CreateServer<T>(T instance, ChannelType channelType, IRpcSerializer serializer = null,
+            TokenImpersonationLevel tokenImpersonationLevel = TokenImpersonationLevel.None,
+            IRpcObjectRepository localRepository = null) where T: class
         {
             if (serializer == null)
             {
                 serializer = new BinaryRpcSerializer();
             }
-            switch (type)
+            switch (channelType)
             {
                 case ChannelType.Tcp:
-                    {
-                        var server = _serverChannel = new TcpRpcServerChannel(
-                            serializer,
-                            new RpcMessageFactory(),
-                            IPAddress.Loopback,
-                            11234);
-                        server.ObjectRepository.RegisterSingleton(instance);
-                        await server.ListenAsync();
+                {
+                    var server = new TcpRpcServerChannel(
+                        serializer,
+                        new RpcMessageFactory(),
+                        IPAddress.Loopback,
+                        11234,
+                        localRepository);
+                    if(instance != null) server.ObjectRepository.RegisterSingleton(instance);
+                    await server.ListenAsync();
 
-
-                        var client = _clientChannel = await CreateClient(type, serializer);
-                        return await client.GetServerObjectAsync<T>();
-                    }
+                    return server;
+                }
                 case ChannelType.NamedPipe:
-                    {
-                        _pipeName = Guid.NewGuid().ToString();
-                        var server = _serverChannel = new NamedPipeRpcServerChannel(
-                            serializer,
-                            new RpcMessageFactory(),
-                            _pipeName);
-                        server.ObjectRepository.RegisterSingleton(instance);
-                        await server.ListenAsync();
+                {
+                    _pipeName = Guid.NewGuid().ToString();
+                    var server = new NamedPipeRpcServerChannel(
+                        serializer,
+                        new RpcMessageFactory(),
+                        _pipeName,
+                        localRepository:localRepository);
+                    if (instance != null) server.ObjectRepository.RegisterSingleton(instance);
+                    await server.ListenAsync();
 
-
-                        var client = _clientChannel = await CreateClient(type, serializer, tokenImpersonationLevel);
-                        return await client.GetServerObjectAsync<T>();
-                    }
+                    return server;
+                }
                 default:
                     throw new NotSupportedException();
             }
-
-
         }
 
         private async Task<IRpcClientChannel> CreateClient(ChannelType channelType, IRpcSerializer serializer = null,
@@ -95,7 +116,7 @@ namespace AdvancedRpcLib.UnitTests
                 }
                 case ChannelType.NamedPipe:
                 {
-                    var client = _clientChannel = new NamedPipeRpcClientChannel(
+                    var client = new NamedPipeRpcClientChannel(
                         serializer,
                         new RpcMessageFactory(),
                         _pipeName,
@@ -136,6 +157,7 @@ namespace AdvancedRpcLib.UnitTests
         [DataRow(ChannelType.Tcp)]
         public async Task CallsSameObjectWithDifferentInterfacesSucceeds(ChannelType type)
         {
+            // TODO should we really make this work?
             var o = new TestObject();
             var co = await Init<ITestObject>(o, type);
             var co2 = await _clientChannel.GetServerObjectAsync<ITestObject2>();
@@ -156,6 +178,7 @@ namespace AdvancedRpcLib.UnitTests
             Assert.AreEqual("dummy", (await Init<ITestObject>(o, type)).SimpleStringResult());
         }
 
+
         [DataTestMethod]
         [DataRow(ChannelType.NamedPipe)]
         [DataRow(ChannelType.Tcp)]
@@ -172,6 +195,16 @@ namespace AdvancedRpcLib.UnitTests
         {
             var o = new TestObject();
             Assert.AreEqual("42", (await Init<ITestObject>(o, type)).SimpleStringConcat("4", "2"));
+        }
+
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
+        public async Task ReturningNullSucceeds(ChannelType type)
+        {
+            var o = new TestObject();
+            var r = (await Init<ITestObject>(o, type)).ReflectObj(null);
+            Assert.IsNull(r);
         }
 
 
@@ -451,6 +484,7 @@ namespace AdvancedRpcLib.UnitTests
         [ExpectedException(typeof(RpcFailedException))]
         public async Task InternalInterfaceShouldNotBeAvailable(ChannelType type)
         {
+            // fails atm .. investigate
             var o = new TestObject();
             (await Init<IInternalInterface>(o, type)).ShouldNotBeVisible();
         }
@@ -514,6 +548,46 @@ namespace AdvancedRpcLib.UnitTests
             Assert.AreEqual(Environment.UserDomainName + "\\" + Environment.UserName, remoteUser);
         }
 
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
+        public async Task InternalInterfaceWorks(ChannelType type)
+        {
+            // for this to work we need [assembly: InternalsVisibleTo("RpcDynamicTypes, Public Key=...")] see top of file
+            var o = new TestObject();
+            using (await CreateServer(o, type,
+                localRepository: new RpcObjectRepository(false) {AllowNonPublicInterfaceAccess = true}))
+            {
+                using (var client = await CreateClient(type))
+                {
+
+                    var totest = await client.GetServerObjectAsync<IInternalInterface>();
+                    totest.ShouldNotBeVisible();
+                }
+            }
+        }
+
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
+        public async Task TypeSingletonWorks(ChannelType type)
+        {
+            // for this to work we need [assembly: InternalsVisibleTo("RpcDynamicTypes, Public Key=...")] see top of file
+            
+            using (var server = await CreateServer<object>(null, type))
+            {
+                server.ObjectRepository.RegisterSingleton<TestObject>();
+                server.ObjectRepository.RegisterSingleton<SubObject>();
+                using (var client = await CreateClient(type))
+                {
+                    var so = await client.GetServerObjectAsync<ISubObject>();
+                    Assert.IsNull(so.Name);
+                    var totest = await client.GetServerObjectAsync<ITestObject>();
+                    Assert.AreEqual("test", totest.Reflect("test"));
+                }
+            }
+        }
+
         [Serializable]
         public class CustomEventArgs : EventArgs
         {
@@ -541,6 +615,8 @@ namespace AdvancedRpcLib.UnitTests
             ISubObject SetNameFromSubObject(ISubObject obj);
 
             string Reflect(string s);
+
+            ISubObject ReflectObj(ISubObject s);
 
             void ThrowException();
         }
@@ -610,6 +686,11 @@ namespace AdvancedRpcLib.UnitTests
             }
 
             public string Reflect(string s)
+            {
+                return s;
+            }
+
+            public ISubObject ReflectObj(ISubObject s)
             {
                 return s;
             }

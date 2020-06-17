@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -10,12 +11,14 @@ namespace AdvancedRpcLib
     public class RpcObjectRepository : IRpcObjectRepository
     {
         private readonly bool _clientRepository;
-        private readonly HashSet<RpcObjectHandle> _rpcObjects = new HashSet<RpcObjectHandle>();
+        private readonly HashSet<RpcHandle> _rpcObjects = new HashSet<RpcHandle>();
 
         public RpcObjectRepository(bool clientRepository)
         {
             _clientRepository = clientRepository;
         }
+
+        public bool AllowNonPublicInterfaceAccess { get; set; }
 
         public string CreateTypeId<T>()
         {
@@ -38,7 +41,7 @@ namespace AdvancedRpcLib
             {
                 lock (_rpcObjects)
                 {
-                    foreach (var o in _rpcObjects.ToArray())
+                    foreach (var o in _rpcObjects.OfType<RpcObjectHandle>().ToArray())
                     {
                         if (!o.Object.TryGetTarget(out var _))
                         {
@@ -46,6 +49,17 @@ namespace AdvancedRpcLib
                         }
                     }
                 }
+            }
+        }
+
+        private RpcObjectHandle CreateObjectHandleFromTypeHandle(RpcObjectTypeHandle handle)
+        {
+            lock (_rpcObjects)
+            {
+                var created = handle.CreateObject();
+                _rpcObjects.Remove(handle);
+                _rpcObjects.Add(created);
+                return created;
             }
         }
 
@@ -60,7 +74,13 @@ namespace AdvancedRpcLib
                     {
                         if (CreateTypeId(intf) == typeId)
                         {
-                            return obj;
+                            if (obj is RpcObjectHandle oh)
+                            {
+                                return oh;
+                            }
+
+                            // a type was registered - create lazily
+                            return CreateObjectHandleFromTypeHandle((RpcObjectTypeHandle) obj);
                         }
                     }
                 }
@@ -78,13 +98,22 @@ namespace AdvancedRpcLib
             }
         }
 
+        public void RegisterSingleton<T>()
+        {
+            lock (_rpcObjects)
+            {
+                var v = new RpcObjectTypeHandle(typeof(T));
+                _rpcObjects.Add(v);
+            }
+        }
+
         public RpcObjectHandle AddInstance(Type interfaceType, object instance, ITransportChannel associatedChannel = null)
         {
             if(!_clientRepository && associatedChannel == null) throw new ArgumentNullException(nameof(associatedChannel));
             lock (_rpcObjects)
             {
                 Purge();
-                var existing = _rpcObjects.FirstOrDefault(o =>
+                var existing = _rpcObjects.OfType<RpcObjectHandle>().FirstOrDefault(o =>
                 {
                     if (o.Object.TryGetTarget(out var obj))
                     {
@@ -108,11 +137,18 @@ namespace AdvancedRpcLib
             lock (_rpcObjects)
             {
                 Purge();
-                if (_rpcObjects.TryGetValue(RpcObjectHandle.ComparisonHandle(instanceId), out var obj))
+                if (_rpcObjects.TryGetValue(RpcHandle.ComparisonHandle(instanceId), out var obj))
                 {
-                    if(obj.Object.TryGetTarget(out var instance))
+                    if (obj is RpcObjectHandle objectHandle)
                     {
-                        return instance;
+                        if (objectHandle.Object.TryGetTarget(out var instance))
+                        {
+                            return instance;
+                        }
+                    }
+                    else
+                    {
+                        return GetInstance(CreateObjectHandleFromTypeHandle((RpcObjectTypeHandle) obj).InstanceId);
                     }
                 }
             }
@@ -124,7 +160,7 @@ namespace AdvancedRpcLib
             lock(_rpcObjects)
             {
                 Purge();
-                var ch = RpcObjectHandle.ComparisonHandle(instanceId);
+                var ch = RpcHandle.ComparisonHandle(instanceId);
                 var toRemove = _rpcObjects.FirstOrDefault(o => (_clientRepository || !o.IsPinned) && o.Equals(ch));
                 if (toRemove != null)
                 {
@@ -137,7 +173,7 @@ namespace AdvancedRpcLib
         {
             lock (_rpcObjects)
             {
-                foreach (var obj in _rpcObjects.Where(o => o.AssociatedChannel == channel).ToArray())
+                foreach (var obj in _rpcObjects.OfType<RpcObjectHandle>().Where(o => o.AssociatedChannel == channel).ToArray())
                 {
                     _rpcObjects.Remove(obj);
                 }
@@ -149,19 +185,22 @@ namespace AdvancedRpcLib
             lock (_rpcObjects)
             {
                 Purge();
-                if (_rpcObjects.TryGetValue(RpcObjectHandle.ComparisonHandle(remoteInstanceId), out var obj))
+                if (_rpcObjects.TryGetValue(RpcHandle.ComparisonHandle(remoteInstanceId), out var obj))
                 {
-                    if (obj.Object.TryGetTarget(out var inst))
+                    if (((RpcObjectHandle) obj).Object.TryGetTarget(out var inst))
                     {
                         return inst;
                     }
                 }
-                var result = new RpcObjectHandle(null);
+
+                var result = new RpcObjectHandle(null, instanceId: remoteInstanceId);
                 _rpcObjects.Add(result);
-                var instance = 
-                    interfaceType.IsSubclassOf(typeof(Delegate)) ?
-                    ImplementDelegate(interfaceType, channel, remoteInstanceId, result.InstanceId) :
-                    ImplementInterface(interfaceType, channel, remoteInstanceId, result.InstanceId);
+
+                var instance = interfaceType.IsSubclassOf(typeof(Delegate))
+                    ? ImplementDelegate(interfaceType, channel, remoteInstanceId, result.InstanceId)
+                    : ImplementInterface(interfaceType, channel, remoteInstanceId, result.InstanceId);
+
+
                 result.Object = new WeakReference<object>(instance);
                 return instance;
             }
@@ -207,13 +246,17 @@ namespace AdvancedRpcLib
 
         private object ImplementInterface(Type interfaceType, IRpcChannel channel, int remoteInstanceId, int localInstanceId)
         {
-            if (interfaceType.IsNotPublic)
+            if (!AllowNonPublicInterfaceAccess && interfaceType.IsNotPublic)
             {
                 throw new RpcFailedException("Cannot get non public interface.");
             }
 
-            var ab = AssemblyBuilder.DefineDynamicAssembly(new AssemblyName("RpcDynamicTypes"),
+            var name = new AssemblyName("RpcDynamicTypes");
+            name.SetPublicKey(this.GetType().Assembly.GetName().GetPublicKey());
+
+            var ab = AssemblyBuilder.DefineDynamicAssembly(name,
                 AssemblyBuilderAccess.RunAndCollect);
+            
             /*
 #if !NETSTANDARD && DEBUG
             ab = AssemblyBuilder.DefineDynamicAssembly(new AssemblyName("RpcDynamicTypes"),
@@ -246,12 +289,37 @@ namespace AdvancedRpcLib
             foreach (var intf in allInterfaces)
             {
                 tb.AddInterfaceImplementation(intf);
-                foreach (var method in intf.GetMethods())
+                foreach (var method in intf.GetMethods().Where(m=>!m.IsSpecialName))
                 {
                     ImplementMethod(tb, method, invokerField, remoteInstanceId, true);
                 }
-            }
 
+                foreach (var property in intf.GetProperties())
+                {
+                    var prop = tb.DefineProperty(property.Name, property.Attributes, property.PropertyType, null);
+                    if (property.GetMethod != null)
+                    {
+                        prop.SetGetMethod(ImplementMethod(tb, property.GetMethod, invokerField, remoteInstanceId, true));
+                    }
+                    if (property.SetMethod != null)
+                    {
+                        prop.SetSetMethod(ImplementMethod(tb, property.SetMethod, invokerField, remoteInstanceId, true));
+                    }
+                }
+
+                foreach (var evnt in intf.GetEvents())
+                {
+                    if (evnt.AddMethod != null)
+                    {
+                        ImplementMethod(tb, evnt.AddMethod, invokerField, remoteInstanceId, true);
+                    }
+                    if (evnt.RemoveMethod != null)
+                    {
+                        ImplementMethod(tb, evnt.RemoveMethod, invokerField, remoteInstanceId, true);
+                    }
+                }
+            }
+            
             
             var type = tb.CreateTypeInfo().AsType();
             /*
@@ -262,7 +330,7 @@ namespace AdvancedRpcLib
             return Activator.CreateInstance(type, channel);
         }
 
-        private void ImplementMethod(TypeBuilder tb, MethodInfo method, FieldBuilder invokerField, int remoteInstanceId, bool overrideBase)
+        private MethodBuilder ImplementMethod(TypeBuilder tb, MethodInfo method, FieldBuilder invokerField, int remoteInstanceId, bool overrideBase)
         {
             var margs = method.GetParameters().Select(p => p.ParameterType).ToArray();
             var mb = tb.DefineMethod(method.Name, MethodAttributes.Public | MethodAttributes.Virtual,
@@ -333,6 +401,8 @@ namespace AdvancedRpcLib
             {
                 tb.DefineMethodOverride(mb, method);
             }
+
+            return mb;
         }
 
 #if DEBUG
@@ -342,7 +412,7 @@ namespace AdvancedRpcLib
             GC.Collect(2);
             GC.WaitForPendingFinalizers();
             Purge();
-            if (_rpcObjects.Where(r=>r.AssociatedChannel != null).Any())
+            if (_rpcObjects.OfType<RpcObjectHandle>().Any(r => r.AssociatedChannel != null))
             {
                 throw new Exception("RPC Object count should be 0");
             }

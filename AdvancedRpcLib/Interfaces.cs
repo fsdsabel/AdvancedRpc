@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Threading.Tasks;
 using AdvancedRpcLib.Channels;
 
@@ -76,7 +77,17 @@ namespace AdvancedRpcLib
         RpcMethodCallMessage CreateMethodCallMessage(ITransportChannel channel, IRpcObjectRepository localRepository,
             int instanceId, string methodName, Type[] argumentTypes, object[] arguments);
 
+        RpcCallResultMessage CreateCallResultMessage(ITransportChannel channel, IRpcObjectRepository localRepository,
+            RpcMethodCallMessage call, MethodInfo calledMethod, object result);
+
+        RpcCallResultMessage CreateExceptionResultMessage(RpcMethodCallMessage call, Exception exception);
         RpcRemoveInstanceMessage CreateRemoveInstanceMessage(int instanceId);
+
+        object DecodeRpcCallResultMessage(IRpcChannel channel, IRpcObjectRepository remoteRepository,
+            IRpcSerializer serializer, RpcCallResultMessage message, Type resultType);
+
+        object DecodeRpcArgument(IRpcChannel channel, IRpcObjectRepository remoteRepository,
+            IRpcSerializer serializer, RpcArgument argument, Type argumentType);
     }
 
     public interface IRpcObjectRepository
@@ -86,6 +97,8 @@ namespace AdvancedRpcLib
         string CreateTypeId(object obj);
 
         void RegisterSingleton(object singleton);
+
+        void RegisterSingleton<T>();
 
         RpcObjectHandle GetObject(string typeId);
 
@@ -100,5 +113,7 @@ namespace AdvancedRpcLib
         void RemoveInstance(int instanceId);
 
         void RemoveAllForChannel(ITransportChannel channel);
+
+        bool AllowNonPublicInterfaceAccess { get; set; }
     }
 }

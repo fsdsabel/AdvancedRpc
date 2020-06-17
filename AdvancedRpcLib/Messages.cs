@@ -43,14 +43,14 @@ namespace AdvancedRpcLib
         public RpcType Type { get; set; }
 
         public string TypeId { get; set; }
+
+        public RpcArgument[] ArrayElements { get; set; }
     }
 
     [Serializable]
-    class RpcCallResultMessage : RpcMessage
+    public class RpcCallResultMessage : RpcMessage
     {
-        public object Result { get; set; }
-
-        public RpcType ResultType { get; set; }
+        public RpcArgument Result { get; set; }
     }
 
     [Serializable]
@@ -63,7 +63,8 @@ namespace AdvancedRpcLib
     {
         Builtin = 0,
         Proxy = 1,
-        Serialized = 2
+        Serialized = 2,
+        ObjectArray = 3
     }
 
     [Serializable]

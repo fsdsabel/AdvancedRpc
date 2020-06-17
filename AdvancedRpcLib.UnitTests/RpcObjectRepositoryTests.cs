@@ -43,8 +43,15 @@ namespace AdvancedRpcLib.UnitTests
 
             };
 
-            
-            
+        }
+
+        [TestMethod]
+        public void GetProxyObject_TypeWithProperty_CreatesCorrectTypeDefinition()
+        {
+            var mock = new Mock<IRpcChannel>();
+            var proxy = new RpcObjectRepository(false).GetProxyObject<IProperty>(mock.Object, 0);
+
+            Assert.IsNotNull(proxy.GetType().GetProperty(nameof(IProperty.TestProperty)));
         }
 
         public interface ISimple1
@@ -60,6 +67,11 @@ namespace AdvancedRpcLib.UnitTests
         public class MyEventArgs : EventArgs
         {
 
+        }
+
+        public interface IProperty
+        {
+            string TestProperty { get; set; }
         }
 
         public interface ISimpleEvent

@@ -12,6 +12,7 @@ namespace AdvancedRpcLib.Channels.NamedPipe
         private readonly string _pipeName;
         private readonly PipeSecurity _pipeSecurity;
         private readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
+        private readonly ILogger _logger;
 
         public NamedPipeRpcServerChannel(
             IRpcSerializer serializer,
@@ -25,10 +26,12 @@ namespace AdvancedRpcLib.Channels.NamedPipe
         {
             _pipeName = pipeName;
             _pipeSecurity = pipeSecurity;
+            _logger = loggerFactory?.CreateLogger<NamedPipeRpcServerChannel>();
         }
 
         public override async Task ListenAsync()
         {
+            _logger?.LogInformation($"Starting named pipe RPC server '{_pipeName}'.");
             var initEvent = new AsyncManualResetEvent(false);
             Exception initException = null;
 
@@ -57,7 +60,9 @@ namespace AdvancedRpcLib.Channels.NamedPipe
                     }
 
                     initEvent.Set();
+                    _logger?.LogInformation("Waiting for clients.");
                     await pipe.WaitForConnectionAsync(_cancellationTokenSource.Token);
+                    _logger?.LogInformation("Client connected.");
                     if (!_cancellationTokenSource.IsCancellationRequested)
                     {
                         var client = new NamedPipeTransportChannel(this, pipe);
@@ -74,6 +79,7 @@ namespace AdvancedRpcLib.Channels.NamedPipe
             {
                 throw initException;
             }
+            _logger?.LogInformation("RPC server started.");
         }
 
         protected override void Stop()

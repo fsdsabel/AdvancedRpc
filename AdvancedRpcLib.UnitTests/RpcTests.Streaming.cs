@@ -49,6 +49,40 @@ namespace AdvancedRpcLib.UnitTests
             CollectionAssert.AreEqual(Enumerable.Repeat("This is a test", 10000).ToList(), result.ToList());
         }
 
+        [TestMethod]
+        public async Task ObjectArrayResultsWork()
+        {
+            var o = new ObjectResult();
+            var co = await Init<IObjectResult>(o, ChannelType.NamedPipe);
+
+            var objects = new ISubObject[]
+            {
+                new SubObject {Name = "1"},
+                new SubObject {Name = "2"},
+                new SubObject {Name = "3"},
+            };
+
+            var result = co.GetObjects(objects);
+
+            Assert.AreEqual(objects.Length, result.Length);
+            for (int i = 0; i < objects.Length; i++)
+            {
+                Assert.AreEqual(objects[i].Name, result[i].Name);
+            }
+        }
+
+        [TestMethod]
+        public async Task ArrayOfBuiltInTypesIsSerializedAsArray()
+        {
+            var o = new ByteArrayTest();
+            var co = await Init<IByteArrayTest>(o, ChannelType.NamedPipe);
+
+            var result = co.GetDataBytes(new byte[] {1,2,3});
+
+
+            CollectionAssert.AreEqual(new byte[] {1, 2, 3}.ToList(), result.ToList());
+        }
+
         public interface IStreamingTest
         {
             IEnumerable<string> GetStrings();
@@ -73,6 +107,32 @@ namespace AdvancedRpcLib.UnitTests
             public string[] ReturnAsArray(IEnumerable<string> value)
             {
                 return value.ToArray();
+            }
+        }
+
+        public interface IByteArrayTest
+        {
+            byte[] GetDataBytes(byte[] data);
+        }
+
+        class ByteArrayTest : IByteArrayTest
+        {
+            public byte[] GetDataBytes(byte[] data)
+            {
+                return data;
+            }
+        }
+
+        public interface IObjectResult
+        {
+            ISubObject[] GetObjects(ISubObject[] objects);
+        }
+
+        public class ObjectResult : IObjectResult
+        {
+            public ISubObject[] GetObjects(ISubObject[] objects)
+            {
+                return objects;
             }
         }
     }

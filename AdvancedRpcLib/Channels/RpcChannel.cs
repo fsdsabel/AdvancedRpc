@@ -130,30 +130,24 @@ namespace AdvancedRpcLib.Channels
             {
                 LogTrace($"Calling remote method '{methodName}' on object '{instanceId}'");
 
-                response = SendMessageAsync<RpcCallResultMessage>(channel,
+                response = Task.Run(async () => await SendMessageAsync<RpcCallResultMessage>(channel,
                         () => MessageFactory.CreateMethodCallMessage(channel, LocalRepository, instanceId, methodName,
-                            argTypes, args))
+                            argTypes, args)))
                     .GetAwaiter().GetResult();
 
                 LogTrace($"Received response for calling '{methodName}' on object '{instanceId}'");
 
-                if (response.ResultType == RpcType.Proxy)
-                {
-                    return GetRemoteRepository(channel).GetProxyObject(GetRpcChannelForClient(channel), resultType,
-                        Convert.ToInt32(response.Result));
-                }
+                return MessageFactory.DecodeRpcCallResultMessage(GetRpcChannelForClient(channel),
+                    GetRemoteRepository(channel), Serializer, response, resultType);
+            }
+            catch (TargetInvocationException ex)
+            {
+                throw ex.InnerException ?? ex;
             }
             catch (Exception ex)
             {
                 throw new RpcFailedException($"Calling remote method {methodName} on object #{instanceId} failed.", ex);
             }
-
-            if (response.Type == RpcMessageType.Exception)
-            {
-                throw (Exception) response.Result;
-            }
-
-            return response.Result;
         }
 
         public void RemoveInstance(TChannel channel, int localInstanceId, int remoteInstanceId)
@@ -243,26 +237,12 @@ namespace AdvancedRpcLib.Channels
 
                         var targetParameterTypes = targetMethod.GetParameters().Select(p => p.ParameterType).ToArray();
                         var args = new object[m.Arguments.Length];
+                        var remoteRepository = GetRemoteRepository(channel);
+                        var rpcChannel = GetRpcChannelForClient(channel);
                         for (int i = 0; i < m.Arguments.Length; i++)
                         {
-                            switch (m.Arguments[i].Type)
-                            {
-                                case RpcType.Builtin:
-                                    args[i] = Serializer.ChangeType(m.Arguments[i].Value, targetParameterTypes[i]);
-                                    break;
-                                case RpcType.Proxy:
-                                    args[i] = GetRemoteRepository(channel).GetProxyObject(
-                                        GetRpcChannelForClient(channel),
-                                        targetParameterTypes[i],
-                                        (int) Serializer.ChangeType(m.Arguments[i].Value, typeof(int)));
-                                    break;
-                                case RpcType.Serialized:
-                                    var type = Type.GetType(m.Arguments[i].TypeId);
-                                    args[i] = Serializer.ChangeType(m.Arguments[i].Value, type);
-                                    break;
-                                default:
-                                    throw new InvalidDataException();
-                            }
+                            args[i] = MessageFactory.DecodeRpcArgument(rpcChannel, remoteRepository,
+                                Serializer, m.Arguments[i], targetParameterTypes[i]);
                         }
 
 
@@ -277,42 +257,18 @@ namespace AdvancedRpcLib.Channels
 
                         LogTrace("Method called without exception.");
 
-                        resultMessage = new RpcCallResultMessage
-                        {
-                            CallId = m.CallId,
-                            Type = RpcMessageType.CallMethodResult,
-                            Result = result
-                        };
+                        resultMessage = MessageFactory.CreateCallResultMessage(channel, LocalRepository, m, targetMethod, result);
 
-                        if (targetMethod.ReturnType.IsInterface)
-                        {
-                            // create a proxy
-                            var handle = LocalRepository.AddInstance(targetMethod.ReturnType, result, channel);
-                            resultMessage.ResultType = RpcType.Proxy;
-                            resultMessage.Result = handle.InstanceId;
-                        }
                     }
                     catch (TargetInvocationException ex)
                     {
                         LogTrace($"Method call resulted in exception: {ex}");
-                        resultMessage = new RpcCallResultMessage
-                        {
-                            CallId = m.CallId,
-                            Type = RpcMessageType.Exception,
-                            ResultType = RpcType.Serialized,
-                            Result = ex.InnerException
-                        };
+                        resultMessage = MessageFactory.CreateExceptionResultMessage(m, ex.InnerException);
                     }
                     catch (Exception ex)
                     {
                         _logger?.LogError($"Failed to process message call: {ex}");
-                        resultMessage = new RpcCallResultMessage
-                        {
-                            CallId = m.CallId,
-                            Type = RpcMessageType.Exception,
-                            ResultType = RpcType.Serialized,
-                            Result = ex
-                        };
+                        resultMessage = MessageFactory.CreateExceptionResultMessage(m, ex);
                     }
                     finally
                     {

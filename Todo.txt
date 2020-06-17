@@ -6,3 +6,5 @@
 - ping pong -> letzten Client detektieren -> Serverevent
 - [done] IPC-Implementierung -> Generalisieren der Channel-Implementierung
 - Streaming of larger Datasets (IEnumerable results)
+
+Data Class (that just serializes properties and doesn't call remote again? i.e. for querydata)
