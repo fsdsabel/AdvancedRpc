@@ -48,6 +48,7 @@ namespace AdvancedRpcLib.Channels
 
         protected virtual void OnDisconnected(ChannelConnectedEventArgs<TChannel> e)
         {
+            CancelRequests();
             Disconnected?.Invoke(this, e);
         }
 

@@ -91,10 +91,19 @@ namespace AdvancedRpcLib
             switch (argument.Type)
             {
                 case RpcType.Builtin:
-                    if (argumentType == typeof(void)) return null;
+                    if (argument.Value == null || argumentType == typeof(void)) return null;
+                    if (argumentType.IsAssignableFrom(argument.Value.GetType()))
+                    {
+                        return argument.Value;
+                    }
+
                     return serializer.ChangeType(argument.Value, argumentType);
                 case RpcType.Proxy:
                     var instanceId = (int) serializer.ChangeType(argument.Value, typeof(int));
+                    if (argument.TypeId != null)
+                    {
+                        argumentType = Type.GetType(argument.TypeId) ?? argumentType; 
+                    }
                     return localRepository.GetInstance(instanceId) ?? remoteRepository.GetProxyObject(channel, argumentType, instanceId);
                 case RpcType.Serialized:
                     var type = Type.GetType(argument.TypeId);
@@ -159,6 +168,9 @@ namespace AdvancedRpcLib
             }
             else
             {
+                typeid = localRepository.CreateTypeId(argument);
+                
+
                 if (argument is IRpcObjectProxy proxy)
                 {
                     /*var instance = localRepository.GetInstance(proxy.LocalInstanceId);

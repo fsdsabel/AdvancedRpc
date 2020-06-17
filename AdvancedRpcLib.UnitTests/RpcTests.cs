@@ -200,6 +200,30 @@ namespace AdvancedRpcLib.UnitTests
         [DataTestMethod]
         [DataRow(ChannelType.NamedPipe)]
         [DataRow(ChannelType.Tcp)]
+        public async Task CallWithObjectsSucceeds(ChannelType type)
+        {
+            var o = new TestObject();
+            var test = (await Init<ITestObject>(o, type)).ReflectObject(new SubObject {Name = "test"});
+
+            Assert.IsInstanceOfType(test, typeof(ISubObject));
+            Assert.AreEqual("test", ((ISubObject) test).Name);
+        }
+
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
+        public async Task CallWithSerializableObjectsSucceeds(ChannelType type)
+        {
+            var o = new TestObject();
+            var test = (await Init<ITestObject>(o, type)).ReflectObject(new SerializableSubObject { Name = "test" });
+
+            Assert.IsInstanceOfType(test, typeof(ISubObject));
+            Assert.AreEqual("test", ((ISubObject)test).Name);
+        }
+
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
         public async Task ReturningNullSucceeds(ChannelType type)
         {
             var o = new TestObject();
@@ -630,6 +654,8 @@ namespace AdvancedRpcLib.UnitTests
 
             ISubObject GetSubObject(string name);
 
+            object ReflectObject(object data);
+
             ISubObject SetNameFromSubObject(ISubObject obj);
 
             string Reflect(string s);
@@ -691,6 +717,11 @@ namespace AdvancedRpcLib.UnitTests
             public ISubObject GetSubObject(string name)
             {
                 return new SubObject { Name = name };
+            }
+
+            public object ReflectObject(object data)
+            {
+                return data;
             }
 
             public string CallMe2()
@@ -774,6 +805,12 @@ namespace AdvancedRpcLib.UnitTests
             {
                 return ReferenceEquals(_subObject, obj) ? obj : null;
             }
+        }
+
+        [Serializable]
+        class SerializableSubObject : ISubObject
+        {
+            public string Name { get; set; }
         }
     }
 }

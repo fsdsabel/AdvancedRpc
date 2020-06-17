@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using AdvancedRpcLib.Helpers;
 using Microsoft.Extensions.Logging;
@@ -55,6 +56,7 @@ namespace AdvancedRpcLib.Channels
         private readonly Dictionary<TChannel, IRpcObjectRepository> _remoteRepositories = new Dictionary<TChannel, IRpcObjectRepository>();
         protected readonly IRpcMessageFactory MessageFactory;
         private readonly ILogger<RpcChannel<TChannel>> _logger;
+        private readonly CancellationTokenSource _disconnectedCancellationTokenSource = new CancellationTokenSource();
 
         protected RpcChannel(IRpcSerializer serializer,
            IRpcMessageFactory messageFactory,
@@ -83,14 +85,17 @@ namespace AdvancedRpcLib.Channels
         }
 
         protected Task<TResult> SendMessageAsync<TResult>(TChannel channel, byte[] msg, int callId)
-               where TResult : RpcMessage
+            where TResult : RpcMessage
         {
-            var waitTask = WaitForMessageResultAsync<TResult>(channel, Serializer, callId);
+            var waitTask = WaitForMessageResultAsync<TResult>(channel, Serializer, callId, 
+                _disconnectedCancellationTokenSource.Token);
             lock (_sendLock)
             {
                 SendMessage(channel.GetStream(), msg);
             }
+
             return waitTask;
+
         }
 
         protected void SendMessage(Stream stream, byte[] msg)
@@ -130,9 +135,13 @@ namespace AdvancedRpcLib.Channels
             {
                 LogTrace($"Calling remote method '{methodName}' on object '{instanceId}'");
 
-                response = Task.Run(async () => await SendMessageAsync<RpcCallResultMessage>(channel,
-                        () => MessageFactory.CreateMethodCallMessage(channel, LocalRepository, instanceId, methodName,
-                            argTypes, args)))
+                response = Task.Run(async () =>
+                    {
+                        return await SendMessageAsync<RpcCallResultMessage>(channel,
+                            () => MessageFactory.CreateMethodCallMessage(channel, LocalRepository, instanceId,
+                                methodName,
+                                argTypes, args));
+                    })
                     .GetAwaiter().GetResult();
 
                 LogTrace($"Received response for calling '{methodName}' on object '{instanceId}'");
@@ -163,25 +172,33 @@ namespace AdvancedRpcLib.Channels
             }
         }
 
-        private async Task<TResult> WaitForMessageResultAsync<TResult>(TChannel channel, IRpcSerializer serializer, int callId)
+        private async Task<TResult> WaitForMessageResultAsync<TResult>(TChannel channel, IRpcSerializer serializer, int callId,
+            CancellationToken cancellationToken)
             where TResult : RpcMessage
         {
             var re = new AsyncManualResetEvent(false);
-            TResult result = default;
-            RegisterMessageCallback(channel, (data) =>
+            using (cancellationToken.Register(() =>
             {
-                var bareMsg = serializer.DeserializeMessage<RpcMessage>(data);
-                if (bareMsg.CallId == callId)
+                re.Set();
+            }))
+            {
+                TResult result = default;
+                RegisterMessageCallback(channel, (data) =>
                 {
-                    result = serializer.DeserializeMessage<TResult>(data);
-                    re.Set();
-                    return true;
-                }
-                return false;
-            }, true);
+                    var bareMsg = serializer.DeserializeMessage<RpcMessage>(data);
+                    if (bareMsg.CallId == callId)
+                    {
+                        result = serializer.DeserializeMessage<TResult>(data);
+                        re.Set();
+                        return true;
+                    }
 
-            await re.WaitAsync();
-            return result;
+                    return false;
+                }, true);
+
+                await re.WaitAsync();
+                return result;
+            }
         }
 
         private protected void RegisterMessageCallback(TChannel channel, AsyncNotification.DataReceivedDelegate callback, bool autoremove)
@@ -399,6 +416,11 @@ namespace AdvancedRpcLib.Channels
             }
 
             return result;
+        }
+
+        protected void CancelRequests()
+        {
+            _disconnectedCancellationTokenSource.Cancel();
         }
     }
 }
