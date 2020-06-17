@@ -88,6 +88,7 @@ namespace AdvancedRpcLib.Channels
 
         protected virtual void OnClientDisconnected(ChannelConnectedEventArgs<TChannel> e)
         {
+            CancelRequests(e.TransportChannel);
             ClientDisconnected?.Invoke(this, e);
             LocalRepository.RemoveAllForChannel(e.TransportChannel);
             lock (_createdChannels)

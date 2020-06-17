@@ -55,6 +55,7 @@ namespace AdvancedRpcLib
         IRpcObjectRepository ObjectRepository { get; }
     }
 
+    [Serializable]
     public class RpcFailedException : Exception
     {
         public RpcFailedException() 

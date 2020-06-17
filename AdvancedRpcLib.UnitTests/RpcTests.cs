@@ -200,6 +200,29 @@ namespace AdvancedRpcLib.UnitTests
         [DataTestMethod]
         [DataRow(ChannelType.NamedPipe)]
         [DataRow(ChannelType.Tcp)]
+        public async Task CallWithOverloadedMethodsAndDifferentArgCountSucceeds(ChannelType type)
+        {
+            var o = new Overload();
+            var rpc = await Init<IOverload>(o, type);
+            Assert.AreEqual(42, rpc.Test());
+            Assert.AreEqual(43, rpc.Test(43));
+        }
+
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
+        public async Task CallWithOverloadedMethodsAndDifferentArgTypeSucceeds(ChannelType type)
+        {
+            Assert.Inconclusive("Different argument type not yet supported");
+            var o = new Overload();
+            var rpc = await Init<IOverload>(o, type);
+            Assert.AreEqual("42", rpc.Test2("42"));
+            Assert.AreEqual(42, rpc.Test2(42));
+        }
+
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
         public async Task CallWithObjectsSucceeds(ChannelType type)
         {
             var o = new TestObject();
@@ -811,6 +834,39 @@ namespace AdvancedRpcLib.UnitTests
         class SerializableSubObject : ISubObject
         {
             public string Name { get; set; }
+        }
+
+        public interface IOverload
+        {
+            int Test();
+
+            int Test(int i);
+
+            string Test2(string i);
+            int Test2(int i);
+        }
+
+        class Overload : IOverload
+        {
+            public int Test()
+            {
+                return 42;
+            }
+
+            public int Test(int i)
+            {
+                return i;
+            }
+
+            public string Test2(string i)
+            {
+                return i;
+            }
+
+            public int Test2(int i)
+            {
+                return i;
+            }
         }
     }
 }

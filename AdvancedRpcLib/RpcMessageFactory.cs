@@ -169,7 +169,6 @@ namespace AdvancedRpcLib
             else
             {
                 typeid = localRepository.CreateTypeId(argument);
-                
 
                 if (argument is IRpcObjectProxy proxy)
                 {

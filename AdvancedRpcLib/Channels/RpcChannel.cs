@@ -48,16 +48,28 @@ namespace AdvancedRpcLib.Channels
             }
         }
 
+        class ChannelInfo
+        {
+            public ChannelInfo(IRpcObjectRepository repository)
+            {
+                Repository = repository;
+            }
+
+            public IRpcObjectRepository Repository { get; }
+
+            public CancellationTokenSource CancellationTokenSource { get; } = new CancellationTokenSource();
+        }
+
         private readonly Dictionary<TChannel, AsyncNotification> _messageNotifications = new Dictionary<TChannel, AsyncNotification>();
         private readonly object _sendLock = new object();
         protected readonly IRpcSerializer Serializer;
         protected readonly IRpcObjectRepository LocalRepository;
         private readonly Func<IRpcObjectRepository> _remoteRepository;
-        private readonly Dictionary<TChannel, IRpcObjectRepository> _remoteRepositories = new Dictionary<TChannel, IRpcObjectRepository>();
+        private readonly Dictionary<TChannel, ChannelInfo> _channelInfos = new Dictionary<TChannel, ChannelInfo>();
         protected readonly IRpcMessageFactory MessageFactory;
+        private readonly RpcChannelType _channelType;
         private readonly ILogger<RpcChannel<TChannel>> _logger;
-        private readonly CancellationTokenSource _disconnectedCancellationTokenSource = new CancellationTokenSource();
-
+        
         protected RpcChannel(IRpcSerializer serializer,
            IRpcMessageFactory messageFactory,
            RpcChannelType channelType,
@@ -66,6 +78,7 @@ namespace AdvancedRpcLib.Channels
            ILoggerFactory loggerFactory = null)
         {
             MessageFactory = messageFactory;
+            _channelType = channelType;
             Serializer = serializer;
             _logger = loggerFactory?.CreateLogger<RpcChannel<TChannel>>();
             _remoteRepository = remoteRepository ?? (() => new RpcObjectRepository(channelType == RpcChannelType.Server));
@@ -74,13 +87,25 @@ namespace AdvancedRpcLib.Channels
 
         protected IRpcObjectRepository GetRemoteRepository(TChannel channel)
         {
-            lock (_remoteRepositories)
+            lock (_channelInfos)
             {
-                if (!_remoteRepositories.ContainsKey(channel))
+                if (!_channelInfos.ContainsKey(channel))
                 {
-                    _remoteRepositories.Add(channel, _remoteRepository());
+                    _channelInfos.Add(channel, new ChannelInfo(_remoteRepository()));
                 }
-                return _remoteRepositories[channel];
+                return _channelInfos[channel].Repository;
+            }
+        }
+
+        private CancellationTokenSource GetCancellationTokenSource(TChannel channel)
+        {
+            lock (_channelInfos)
+            {
+                if (!_channelInfos.ContainsKey(channel))
+                {
+                    _channelInfos.Add(channel, new ChannelInfo(_remoteRepository()));
+                }
+                return _channelInfos[channel].CancellationTokenSource;
             }
         }
 
@@ -88,7 +113,7 @@ namespace AdvancedRpcLib.Channels
             where TResult : RpcMessage
         {
             var waitTask = WaitForMessageResultAsync<TResult>(channel, Serializer, callId, 
-                _disconnectedCancellationTokenSource.Token);
+                GetCancellationTokenSource(channel).Token);
             lock (_sendLock)
             {
                 SendMessage(channel.GetStream(), msg);
@@ -239,7 +264,20 @@ namespace AdvancedRpcLib.Channels
                             
                         var obj = LocalRepository.GetInstance(m.InstanceId);
 
-                        var targetMethod = obj.GetType().GetMethod(m.MethodName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+                        MethodInfo targetMethod;
+                        try
+                        {
+                            targetMethod = obj.GetType().GetMethod(m.MethodName,
+                                BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+                        }
+                        catch (AmbiguousMatchException)
+                        {
+                            targetMethod = obj.GetType()
+                                .GetMethods(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
+                                .FirstOrDefault(fm =>
+                                    fm.Name == m.MethodName && fm.GetParameters().Length == m.Arguments.Length);
+                        }
+
                         if (targetMethod == null)
                         {
                             targetMethod = FindExplicitInterfaceImplementation(obj.GetType(), m.MethodName);
@@ -418,9 +456,13 @@ namespace AdvancedRpcLib.Channels
             return result;
         }
 
-        protected void CancelRequests()
+        protected void CancelRequests(TChannel channel)
         {
-            _disconnectedCancellationTokenSource.Cancel();
+            GetCancellationTokenSource(channel).Cancel();
+            lock (_channelInfos)
+            {
+                _channelInfos.Remove(channel);
+            }
         }
     }
 }
