@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -10,6 +9,8 @@ namespace AdvancedRpcLib
 {
     public class RpcObjectRepository : IRpcObjectRepository
     {
+       
+
         private readonly bool _clientRepository;
         private readonly HashSet<RpcHandle> _rpcObjects = new HashSet<RpcHandle>();
 
@@ -320,6 +321,7 @@ namespace AdvancedRpcLib
                 }
             }
             
+            ImplementIRpcObjectProxy(tb, localInstanceId, remoteInstanceId);
             
             var type = tb.CreateTypeInfo().AsType();
             /*
@@ -327,7 +329,39 @@ namespace AdvancedRpcLib
             ab.Save(@"RpcDynamicTypes.dll");
 #endif*/
 
+
             return Activator.CreateInstance(type, channel);
+        }
+
+        private void ImplementIRpcObjectProxy(TypeBuilder tb, int localInstanceId, int remoteInstanceId)
+        {
+            tb.AddInterfaceImplementation(typeof(IRpcObjectProxy));
+
+            void DefineProp(string propName, int instanceId)
+            {
+
+                var pb = tb.DefineProperty(propName,
+                    PropertyAttributes.None, typeof(int), Type.EmptyTypes);
+
+                var mb = tb.DefineMethod($"get_InstanceId{Guid.NewGuid():N}",
+                    MethodAttributes.Private |
+                    MethodAttributes.HideBySig |
+                    MethodAttributes.NewSlot |
+                    MethodAttributes.Virtual |
+                    MethodAttributes.Final, typeof(int), Type.EmptyTypes);
+                var il = mb.GetILGenerator();
+                il.Emit(OpCodes.Ldc_I4, instanceId);
+                il.Emit(OpCodes.Ret);
+
+
+                tb.DefineMethodOverride(mb,
+                    typeof(IRpcObjectProxy).GetProperty(propName).GetMethod);
+                pb.SetGetMethod(mb);
+            }
+
+            DefineProp(nameof(IRpcObjectProxy.LocalInstanceId), localInstanceId);
+            DefineProp(nameof(IRpcObjectProxy.RemoteInstanceId), remoteInstanceId);
+
         }
 
         private MethodBuilder ImplementMethod(TypeBuilder tb, MethodInfo method, FieldBuilder invokerField, int remoteInstanceId, bool overrideBase)

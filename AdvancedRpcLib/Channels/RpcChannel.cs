@@ -138,7 +138,7 @@ namespace AdvancedRpcLib.Channels
                 LogTrace($"Received response for calling '{methodName}' on object '{instanceId}'");
 
                 return MessageFactory.DecodeRpcCallResultMessage(GetRpcChannelForClient(channel),
-                    GetRemoteRepository(channel), Serializer, response, resultType);
+                    LocalRepository, GetRemoteRepository(channel), Serializer, response, resultType);
             }
             catch (TargetInvocationException ex)
             {
@@ -241,7 +241,7 @@ namespace AdvancedRpcLib.Channels
                         var rpcChannel = GetRpcChannelForClient(channel);
                         for (int i = 0; i < m.Arguments.Length; i++)
                         {
-                            args[i] = MessageFactory.DecodeRpcArgument(rpcChannel, remoteRepository,
+                            args[i] = MessageFactory.DecodeRpcArgument(rpcChannel, LocalRepository, remoteRepository,
                                 Serializer, m.Arguments[i], targetParameterTypes[i]);
                         }
 

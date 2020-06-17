@@ -24,20 +24,6 @@ namespace AdvancedRpcLib
         public RpcCallResultMessage CreateCallResultMessage(ITransportChannel channel, IRpcObjectRepository localRepository, 
             RpcMethodCallMessage call, MethodInfo calledMethod, object result)
         {
-            /*var resultMessage = new RpcCallResultMessage
-            {
-                CallId = call.CallId,
-                Type = RpcMessageType.CallMethodResult,
-                Result = result
-            };
-
-            if (calledMethod.ReturnType.IsInterface && result != null)
-            {
-                // create a proxy
-                var handle = localRepository.AddInstance(calledMethod.ReturnType, result, channel);
-                resultMessage.ResultType = RpcType.Proxy;
-                resultMessage.Result = handle.InstanceId;
-            }*/
 
             var resultArgument = CreateRpcArgument(channel, localRepository, result, calledMethod.ReturnType);
             var resultMessage = new RpcCallResultMessage
@@ -89,18 +75,18 @@ namespace AdvancedRpcLib
             };
         }
 
-        public object DecodeRpcCallResultMessage(IRpcChannel channel, IRpcObjectRepository remoteRepository,
-            IRpcSerializer serializer, RpcCallResultMessage message, Type resultType)
+        public object DecodeRpcCallResultMessage(IRpcChannel channel, IRpcObjectRepository localRepository, 
+            IRpcObjectRepository remoteRepository, IRpcSerializer serializer, RpcCallResultMessage message, Type resultType)
         {
             if (message.Type == RpcMessageType.Exception)
             {
                 throw new TargetInvocationException((Exception)message.Result.Value);
             }
-            return DecodeRpcArgument(channel, remoteRepository, serializer, message.Result, resultType);
+            return DecodeRpcArgument(channel, localRepository, remoteRepository, serializer, message.Result, resultType);
         }
 
-        public object DecodeRpcArgument(IRpcChannel channel, IRpcObjectRepository remoteRepository, 
-            IRpcSerializer serializer, RpcArgument argument, Type argumentType)
+        public object DecodeRpcArgument(IRpcChannel channel, IRpcObjectRepository localRepository, 
+            IRpcObjectRepository remoteRepository, IRpcSerializer serializer, RpcArgument argument, Type argumentType)
         {
             switch (argument.Type)
             {
@@ -108,8 +94,8 @@ namespace AdvancedRpcLib
                     if (argumentType == typeof(void)) return null;
                     return serializer.ChangeType(argument.Value, argumentType);
                 case RpcType.Proxy:
-                    return remoteRepository.GetProxyObject(channel, argumentType,
-                        (int) serializer.ChangeType(argument.Value, typeof(int)));
+                    var instanceId = (int) serializer.ChangeType(argument.Value, typeof(int));
+                    return localRepository.GetInstance(instanceId) ?? remoteRepository.GetProxyObject(channel, argumentType, instanceId);
                 case RpcType.Serialized:
                     var type = Type.GetType(argument.TypeId);
                     return serializer.ChangeType(argument.Value, type);
@@ -120,7 +106,7 @@ namespace AdvancedRpcLib
 
                     for (int i = 0; i < array.Length; i++)
                     {
-                        array.SetValue(DecodeRpcArgument(channel, remoteRepository, serializer, argument.ArrayElements[i],
+                        array.SetValue(DecodeRpcArgument(channel, localRepository, remoteRepository, serializer, argument.ArrayElements[i],
                                 elementType), i);
                     }
 
@@ -151,9 +137,11 @@ namespace AdvancedRpcLib
                 else
                 {
                     type = RpcType.ObjectArray;
-                    typeid = localRepository.CreateTypeId(argument);
+                    // make sure we use the correct interface definition as base type (we might get a specific array here)
+                    var arrayTemplate = Array.CreateInstance(argumentType.GetElementType(), 0);
+                    typeid = localRepository.CreateTypeId(arrayTemplate);
                     argument = array.Length;
-                    var elementType = array.GetType().GetElementType();
+                    var elementType = argumentType.GetElementType();
                     arrayElements = new RpcArgument[array.Length];
                     for (int i = 0; i < array.Length; i++)
                     {
@@ -171,7 +159,19 @@ namespace AdvancedRpcLib
             }
             else
             {
-                argument = localRepository.AddInstance(argumentType, argument, channel).InstanceId;
+                if (argument is IRpcObjectProxy proxy)
+                {
+                    /*var instance = localRepository.GetInstance(proxy.LocalInstanceId);
+                    if (instance != null) // todo this check is not necessary
+                    {
+                        argument = proxy.LocalInstanceId;
+                    }*/
+                    argument = proxy.RemoteInstanceId;
+                }
+                else
+                {
+                    argument = localRepository.AddInstance(argumentType, argument, channel).InstanceId;
+                }
             }
 
             return new RpcArgument

@@ -83,11 +83,17 @@ namespace AdvancedRpcLib
         RpcCallResultMessage CreateExceptionResultMessage(RpcMethodCallMessage call, Exception exception);
         RpcRemoveInstanceMessage CreateRemoveInstanceMessage(int instanceId);
 
-        object DecodeRpcCallResultMessage(IRpcChannel channel, IRpcObjectRepository remoteRepository,
+        object DecodeRpcCallResultMessage(IRpcChannel channel, IRpcObjectRepository localRepository, IRpcObjectRepository remoteRepository,
             IRpcSerializer serializer, RpcCallResultMessage message, Type resultType);
 
-        object DecodeRpcArgument(IRpcChannel channel, IRpcObjectRepository remoteRepository,
+        object DecodeRpcArgument(IRpcChannel channel, IRpcObjectRepository localRepository, IRpcObjectRepository remoteRepository,
             IRpcSerializer serializer, RpcArgument argument, Type argumentType);
+    }
+
+    public interface IRpcObjectProxy
+    {
+        int LocalInstanceId { get; }
+        int RemoteInstanceId { get; }
     }
 
     public interface IRpcObjectRepository

@@ -55,7 +55,7 @@ namespace AdvancedRpcLib.UnitTests
             var o = new ObjectResult();
             var co = await Init<IObjectResult>(o, ChannelType.NamedPipe);
 
-            var objects = new ISubObject[]
+            var objects = new SubObject[]
             {
                 new SubObject {Name = "1"},
                 new SubObject {Name = "2"},

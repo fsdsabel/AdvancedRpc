@@ -7,4 +7,4 @@
 - [done] IPC-Implementierung -> Generalisieren der Channel-Implementierung
 - Streaming of larger Datasets (IEnumerable results)
 
-Data Class (that just serializes properties and doesn't call remote again? i.e. for querydata)
+Data Class (that just serializes properties and doesn't call remote again? i.e. for querydata) - this is done, just annotate with [Serializable]

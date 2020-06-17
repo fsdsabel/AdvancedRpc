@@ -588,6 +588,24 @@ namespace AdvancedRpcLib.UnitTests
             }
         }
 
+
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
+        public async Task RoundTripSucceeds(ChannelType type)
+        {
+            var o = new RoundTrip();
+            var co = await Init<IRoundTrip>(o, type);
+
+            var testObj = co.GetObject();
+            var testObj2 = co.GetObject();
+            var verified = co.VerifyObject(testObj);
+
+            Assert.IsNotNull(verified);
+            Assert.AreSame(testObj, verified);
+            Assert.AreSame(testObj, testObj2);
+        }
+
         [Serializable]
         public class CustomEventArgs : EventArgs
         {
@@ -734,6 +752,28 @@ namespace AdvancedRpcLib.UnitTests
             }
 
 
+        }
+
+        public interface IRoundTrip
+        {
+            ISubObject GetObject();
+
+            ISubObject VerifyObject(ISubObject obj);
+        }
+
+        class RoundTrip : IRoundTrip
+        {
+            private ISubObject _subObject = new SubObject {Name = "Test"};
+
+            public ISubObject GetObject()
+            {
+                return _subObject;
+            }
+
+            public ISubObject VerifyObject(ISubObject obj)
+            {
+                return ReferenceEquals(_subObject, obj) ? obj : null;
+            }
         }
     }
 }
