@@ -81,7 +81,7 @@ namespace AdvancedRpcLib
         RpcCallResultMessage CreateCallResultMessage(ITransportChannel channel, IRpcObjectRepository localRepository,
             RpcMethodCallMessage call, MethodInfo calledMethod, object result);
 
-        RpcCallResultMessage CreateExceptionResultMessage(RpcMethodCallMessage call, Exception exception);
+        RpcCallResultMessage CreateExceptionResultMessage(RpcMessage call, Exception exception);
         RpcRemoveInstanceMessage CreateRemoveInstanceMessage(int instanceId);
 
         object DecodeRpcCallResultMessage(IRpcChannel channel, IRpcObjectRepository localRepository, IRpcObjectRepository remoteRepository,

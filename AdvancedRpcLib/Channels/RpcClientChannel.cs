@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Reflection;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
@@ -38,7 +39,18 @@ namespace AdvancedRpcLib.Channels
                 var remoteRepo = GetRemoteRepository(TransportChannel);
                 var response = await SendMessageAsync<RpcGetServerObjectResponseMessage>(TransportChannel,
                     () => MessageFactory.CreateGetServerObjectMessage(remoteRepo.CreateTypeId<TResult>()));
-                return remoteRepo.GetProxyObject<TResult>(GetRpcChannelForClient(TransportChannel), response.InstanceId);
+
+                if (response.Type == RpcMessageType.Exception)
+                {
+                    throw new TargetInvocationException((Exception) response.Exception.Value);
+                }
+
+                return remoteRepo.GetProxyObject<TResult>(GetRpcChannelForClient(TransportChannel),
+                    response.InstanceId);
+            }
+            catch (TargetInvocationException ex)
+            {
+                throw ex.InnerException ?? ex;
             }
             catch (Exception ex)
             {

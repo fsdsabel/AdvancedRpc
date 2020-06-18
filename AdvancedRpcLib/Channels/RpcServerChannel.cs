@@ -54,18 +54,31 @@ namespace AdvancedRpcLib.Channels
             switch (msg.Type)
             {
                 case RpcMessageType.GetServerObject:
+                    var m = Serializer.DeserializeMessage<RpcGetServerObjectMessage>(data);
+                    RpcGetServerObjectResponseMessage response;
+                    try
                     {
-                        var m = Serializer.DeserializeMessage<RpcGetServerObjectMessage>(data);
                         var obj = LocalRepository.GetObject(m.TypeId);
-                        var response = Serializer.SerializeMessage(new RpcGetServerObjectResponseMessage
+                        response = new RpcGetServerObjectResponseMessage
                         {
                             CallId = m.CallId,
                             Type = RpcMessageType.GetServerObject,
                             InstanceId = obj.InstanceId
-                        });
-                        SendMessage(channel.GetStream(), response);
-                        return true;
+                        };
                     }
+                    catch (Exception ex)
+                    {
+                        var exmsg = MessageFactory.CreateExceptionResultMessage(m, ex);
+                        response = new RpcGetServerObjectResponseMessage
+                        {
+                            CallId = exmsg.CallId,
+                            Type = exmsg.Type,
+                            Exception = exmsg.Result
+                        };
+                    }
+
+                    SendMessage(channel.GetStream(), Serializer.SerializeMessage(response));
+                    return true;
             }
             return false;
         }

@@ -1,5 +1,6 @@
 ﻿using Nito.AsyncEx;
 using System;
+using System.IO;
 using System.IO.Pipes;
 using System.Threading;
 using System.Threading.Tasks;
@@ -85,6 +86,11 @@ namespace AdvancedRpcLib.Channels.NamedPipe
         protected override void Stop()
         {
             _cancellationTokenSource.Cancel();            
+        }
+
+        protected override bool IsConnected(Stream stream)
+        {
+            return ((NamedPipeServerStream) stream).IsConnected;
         }
     }
 }

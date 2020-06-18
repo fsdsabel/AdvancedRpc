@@ -274,7 +274,7 @@ namespace AdvancedRpcLib.Channels
                         {
                             targetMethod = obj.GetType()
                                 .GetMethods(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
-                                .FirstOrDefault(fm =>
+                                .SingleOrDefault(fm =>
                                     fm.Name == m.MethodName && fm.GetParameters().Length == m.Arguments.Length);
                         }
 
@@ -374,7 +374,7 @@ namespace AdvancedRpcLib.Channels
                 {
                     try
                     {
-                        //smallMessageBuffer
+                        // ReSharper disable once InconsistentlySynchronizedField
                         if (!_messageNotifications[channel].Notify(data))
                         {
                             _logger?.LogError($"Failed to process message.");
@@ -444,13 +444,17 @@ namespace AdvancedRpcLib.Channels
         }
 
         
-        private static byte[] ReadBytes(Stream stream, int length)
+        private byte[] ReadBytes(Stream stream, int length)
         {
             int offset = 0;
             var result = new byte[length];
             while (offset < length)
             {
                 offset += stream.Read(result, offset, length - offset);
+                if (!IsConnected(stream))
+                {
+                    throw new IOException("Cannot read from disconnected stream.");
+                }
             }
 
             return result;
@@ -464,5 +468,8 @@ namespace AdvancedRpcLib.Channels
                 _channelInfos.Remove(channel);
             }
         }
+
+        protected virtual bool IsConnected(Stream stream) => true;
+
     }
 }

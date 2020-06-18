@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Reflection;
 
 namespace AdvancedRpcLib.Helpers
 {
@@ -40,9 +41,14 @@ namespace AdvancedRpcLib.Helpers
                         return true;
                     }
                 }
+                catch (TargetInvocationException ex)
+                {
+                    throw ex.InnerException ?? ex;
+                }
                 catch (Exception ex)
                 {
                     Console.WriteLine("Error in message notification: " + ex);
+                    throw;
                 }
             }
             return false;

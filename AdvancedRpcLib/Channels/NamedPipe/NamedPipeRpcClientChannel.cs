@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.IO.Pipes;
 using System.Security.Principal;
 using System.Threading;
@@ -46,6 +47,11 @@ namespace AdvancedRpcLib.Channels.NamedPipe
             RunReaderLoop(_channel, ()=> OnDisconnected(new ChannelConnectedEventArgs<NamedPipeTransportChannel>(_channel)));
 
             _logger?.LogDebug($"Message loop running.");
+        }
+
+        protected override bool IsConnected(Stream stream)
+        {
+            return ((NamedPipeClientStream) stream).IsConnected;
         }
     }
 }

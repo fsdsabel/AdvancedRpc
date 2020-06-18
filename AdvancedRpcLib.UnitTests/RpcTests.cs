@@ -653,6 +653,21 @@ namespace AdvancedRpcLib.UnitTests
             Assert.AreSame(testObj, testObj2);
         }
 
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
+        [ExpectedException(typeof(ArgumentException))]
+        public async Task ExceptionInConstructorIsDelivered(ChannelType type)
+        {
+
+            var server = await CreateServer<IConstructorException>(null, type);
+            var client = await CreateClient(type);
+
+            server.ObjectRepository.RegisterSingleton<ConstructorException>();
+
+            await client.GetServerObjectAsync<IConstructorException>();
+        }
+
         [Serializable]
         public class CustomEventArgs : EventArgs
         {
@@ -866,6 +881,16 @@ namespace AdvancedRpcLib.UnitTests
             public int Test2(int i)
             {
                 return i;
+            }
+        }
+
+        public interface IConstructorException {}
+
+        class ConstructorException : IConstructorException
+        {
+            public ConstructorException()
+            {
+                throw new ArgumentException();
             }
         }
     }

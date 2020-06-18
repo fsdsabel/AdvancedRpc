@@ -36,7 +36,7 @@ namespace AdvancedRpcLib
             return resultMessage;
         }
 
-        public RpcCallResultMessage CreateExceptionResultMessage(RpcMethodCallMessage call, Exception exception)
+        public RpcCallResultMessage CreateExceptionResultMessage(RpcMessage call, Exception exception)
         {
             return new RpcCallResultMessage
             {

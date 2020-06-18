@@ -71,6 +71,8 @@ namespace AdvancedRpcLib
     class RpcGetServerObjectResponseMessage : RpcMessage
     {
         public int InstanceId { get; set; }
+
+        public RpcArgument Exception { get; set; }
     }
 
     enum RpcChannelMessageType
