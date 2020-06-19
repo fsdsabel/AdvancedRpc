@@ -11,10 +11,11 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestServer", "TestServer\Te
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Readme", "Readme", "{A3BFCD73-016A-4380-A524-22AC310FB5F3}"
 	ProjectSection(SolutionItems) = preProject
+		README.md = README.md
 		Todo.txt = Todo.txt
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AdvancedRpcLib.UnitTests", "AdvancedRpcLib.UnitTests\AdvancedRpcLib.UnitTests.csproj", "{23E816ED-4553-48CE-9439-B23A2DAD153E}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AdvancedRpcLib.UnitTests", "AdvancedRpcLib.UnitTests\AdvancedRpcLib.UnitTests.csproj", "{23E816ED-4553-48CE-9439-B23A2DAD153E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

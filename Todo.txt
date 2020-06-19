@@ -1,10 +1,10 @@
 - [done] large objects
 - [done] Exceptions
 - beim Serialisieren nicht auf den Parametertypen bauen, sondern auf den eigentlichen Objekttyp? Dann würde EventHandlersWork auch mit o-Interface-Cast funktionieren
-- Fehlerbehandlung .. Server down, etc ..
+- [done] Fehlerbehandlung .. Server down, etc ..
 - [done] nur public interface methods
-- ping pong -> letzten Client detektieren -> Serverevent
+- [done] ping pong -> letzten Client detektieren -> Serverevent
 - [done] IPC-Implementierung -> Generalisieren der Channel-Implementierung
-- Streaming of larger Datasets (IEnumerable results)
+- [done] Streaming of larger Datasets (IEnumerable results)
 
 Data Class (that just serializes properties and doesn't call remote again? i.e. for querydata) - this is done, just annotate with [Serializable]

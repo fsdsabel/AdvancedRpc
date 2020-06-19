@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.InteropServices;
 using AdvancedRpcLib.Channels;
+using AdvancedRpcLib.Helpers;
 
 namespace AdvancedRpcLib
 {
@@ -348,7 +349,7 @@ namespace AdvancedRpcLib
                    CreateDestructor(tb, invokerField, localField, remoteField);
 
                     var allInterfaces = interfaceType.GetInterfaces().Concat(new[] {interfaceType})
-                        .Where(i => i.IsInterface && !i.IsNotPublic);
+                        .Where(i => i.IsInterface);
 
                     foreach (var intf in allInterfaces)
                     {
