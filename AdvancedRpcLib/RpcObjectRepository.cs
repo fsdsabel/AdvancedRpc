@@ -318,7 +318,7 @@ namespace AdvancedRpcLib
 
         private object ImplementInterface(Type interfaceType, IRpcChannel channel, int remoteInstanceId, int localInstanceId)
         {
-            if (!AllowNonPublicInterfaceAccess && interfaceType.IsNotPublic)
+            if (!AllowNonPublicInterfaceAccess && interfaceType.IsInterface && !interfaceType.IsPublic && !interfaceType.IsNestedPublic)
             {
                 throw new RpcFailedException("Cannot get non public interface.");
             }
@@ -348,7 +348,7 @@ namespace AdvancedRpcLib
                    CreateDestructor(tb, invokerField, localField, remoteField);
 
                     var allInterfaces = interfaceType.GetInterfaces().Concat(new[] {interfaceType})
-                        .Where(i => i.IsInterface);
+                        .Where(i => i.IsInterface && !i.IsNotPublic);
 
                     foreach (var intf in allInterfaces)
                     {

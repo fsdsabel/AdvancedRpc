@@ -94,7 +94,8 @@ namespace AdvancedRpcLib.UnitTests
         }
 
         private async Task<IRpcClientChannel> CreateClient(ChannelType channelType, IRpcSerializer serializer = null,
-            TokenImpersonationLevel tokenImpersonationLevel = TokenImpersonationLevel.None)
+            TokenImpersonationLevel tokenImpersonationLevel = TokenImpersonationLevel.None,
+            IRpcObjectRepository localRepository = null, Func<IRpcObjectRepository> remoteRepository = null)
         {
             if (serializer == null)
             {
@@ -109,7 +110,9 @@ namespace AdvancedRpcLib.UnitTests
                         serializer,
                         new RpcMessageFactory(),
                         IPAddress.Loopback,
-                        11234);
+                        11234,
+                        localRepository,
+                        remoteRepository);
 
                     await client.ConnectAsync();
                     return client;
@@ -120,7 +123,9 @@ namespace AdvancedRpcLib.UnitTests
                         serializer,
                         new RpcMessageFactory(),
                         _pipeName,
-                        tokenImpersonationLevel);
+                        tokenImpersonationLevel,
+                        localRepository,
+                        remoteRepository);
 
                     await client.ConnectAsync();
                     return client;
@@ -157,8 +162,11 @@ namespace AdvancedRpcLib.UnitTests
         [DataRow(ChannelType.Tcp)]
         public async Task CallsSameObjectWithDifferentInterfacesSucceeds(ChannelType type)
         {
+            Assert.Inconclusive();
+
             // TODO should we really make this work?
             var o = new TestObject();
+            
             var co = await Init<ITestObject>(o, type);
             var co2 = await _clientChannel.GetServerObjectAsync<ITestObject2>();
             co.CallMe();
@@ -694,7 +702,9 @@ namespace AdvancedRpcLib.UnitTests
             using (await CreateServer(o, type,
                 localRepository: new RpcObjectRepository(false) {AllowNonPublicInterfaceAccess = true}))
             {
-                using (var client = await CreateClient(type))
+                using (var client = await CreateClient(type,
+                    localRepository: new RpcObjectRepository(true) { AllowNonPublicInterfaceAccess = true },
+                    remoteRepository: () => new RpcObjectRepository(false) { AllowNonPublicInterfaceAccess = true }))
                 {
 
                     var totest = await client.GetServerObjectAsync<IInternalInterface>();
