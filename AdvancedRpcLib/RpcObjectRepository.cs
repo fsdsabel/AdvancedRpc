@@ -1,18 +1,40 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Runtime.InteropServices;
 using AdvancedRpcLib.Channels;
 
 namespace AdvancedRpcLib
 {
     public class RpcObjectRepository : IRpcObjectRepository
     {
+        class RpcTypeDefinition
+        {
+            public Type Type { get; set; }
+
+            public FieldInfo RemoteIdField { get; set; }
+
+            public FieldInfo LocalIdField { get; set; }
+        }
        
 
         private readonly bool _clientRepository;
         private readonly HashSet<RpcHandle> _rpcObjects = new HashSet<RpcHandle>();
+        
+        private static readonly ModuleBuilder _moduleBuilder;
+        private static readonly Dictionary<Type, RpcTypeDefinition> _proxyImplementations = new Dictionary<Type, RpcTypeDefinition>();
+
+        static RpcObjectRepository()
+        {
+            var name = new AssemblyName("RpcDynamicTypes");
+            name.SetPublicKey(typeof(RpcObjectRepository).Assembly.GetName().GetPublicKey());
+            var assemblyBuilder = AssemblyBuilder.DefineDynamicAssembly(name,
+                AssemblyBuilderAccess.Run);
+            _moduleBuilder = assemblyBuilder.DefineDynamicModule("RpcDynamicTypes.dll");
+        }
 
         public RpcObjectRepository(bool clientRepository)
         {
@@ -38,7 +60,7 @@ namespace AdvancedRpcLib
 
         private void Purge()
         {
-            if (_clientRepository) // never purge on server side, they are only removed by explicit client calls
+         //   if (_clientRepository) // never purge on server side, they are only removed by explicit client calls
             {
                 lock (_rpcObjects)
                 {
@@ -94,7 +116,7 @@ namespace AdvancedRpcLib
             lock (_rpcObjects)
             {
                 Purge();
-                var v = new RpcObjectHandle(singleton, true);
+                var v = new RpcObjectHandle(singleton, true, true);
                 _rpcObjects.Add(v);
             }
         }
@@ -118,13 +140,19 @@ namespace AdvancedRpcLib
                 {
                     if (o.Object.TryGetTarget(out var obj))
                     {
+                        if (instance is Delegate && obj is Delegate)
+                        {
+                            // special handling for delegates
+                            return obj.Equals(instance);
+                        }
+
                         return ReferenceEquals(obj, instance);
                     }
                     return false;
                 });
                 if (existing == null)
                 {
-                    var v = new RpcObjectHandle(instance,/* !_clientRepository*/true); // always pin on server side as we never know when the client needs us again
+                    var v = new RpcObjectHandle(instance, /*!_clientRepository*/true); // always pin on server side as we never know when the client needs us again
                     v.AssociatedChannel = associatedChannel;
                     _rpcObjects.Add(v);
                     return v;
@@ -162,7 +190,7 @@ namespace AdvancedRpcLib
             {
                 Purge();
                 var ch = RpcHandle.ComparisonHandle(instanceId);
-                var toRemove = _rpcObjects.FirstOrDefault(o => (_clientRepository || !o.IsPinned) && o.Equals(ch));
+                var toRemove = _rpcObjects.FirstOrDefault(o => !o.IsSingleton /*(_clientRepository || !o.IsPinned)*/ && o.Equals(ch));
                 if (toRemove != null)
                 {
                     _rpcObjects.Remove(toRemove);
@@ -194,13 +222,16 @@ namespace AdvancedRpcLib
                     }
                 }
 
-                var result = new RpcObjectHandle(null, instanceId: remoteInstanceId);
+                bool isDelegate = interfaceType.IsSubclassOf(typeof(Delegate));
+
+                var result = new RpcObjectHandle(null, pinned:/*isDelegate && !_clientRepository,*/false, instanceId: remoteInstanceId);
                 _rpcObjects.Add(result);
 
-                var instance = interfaceType.IsSubclassOf(typeof(Delegate))
+                var instance = isDelegate
                     ? ImplementDelegate(interfaceType, channel, remoteInstanceId, result.InstanceId)
                     : ImplementInterface(interfaceType, channel, remoteInstanceId, result.InstanceId);
 
+                
 
                 result.Object = new WeakReference<object>(instance);
                 return instance;
@@ -214,18 +245,37 @@ namespace AdvancedRpcLib
 
         private object ImplementDelegate(Type delegateType, IRpcChannel channel, int remoteInstanceId, int localInstanceId)
         {
-            var ab = AssemblyBuilder.DefineDynamicAssembly(new AssemblyName("RpcDynamicTypes"),
-                AssemblyBuilderAccess.RunAndCollect);
-            var dm = ab.DefineDynamicModule("RpcDynamicTypes.dll");
-            var tb = dm.DefineType(delegateType.Name + $"Shadow{remoteInstanceId}");
+            RpcTypeDefinition type;
+            lock (_proxyImplementations)
+            {
+                if (!_proxyImplementations.TryGetValue(delegateType, out type))
+                {
+                    var tb = _moduleBuilder.DefineType(delegateType.Name + "Shadow");
+                    var invokerField = CreateConstructor(tb);
+                    var (localField, remoteField) = ImplementIRpcObjectProxy(tb);
 
-            var invokerField = CreateConstructor(tb);
+                    CreateDestructor(tb, invokerField, localField, remoteField);
 
-            ImplementMethod(tb, delegateType.GetMethod("Invoke"), invokerField, remoteInstanceId, false);
-           
+                    ImplementMethod(tb, delegateType.GetMethod("Invoke"), invokerField, remoteField, false);
 
-            var type = tb.CreateTypeInfo().AsType();
-            var delObj = Activator.CreateInstance(type, channel);
+                    type = new RpcTypeDefinition
+                    {
+                        Type = tb.CreateTypeInfo().AsType()
+                    };
+                    type.LocalIdField = type.Type.GetField(localField.Name, BindingFlags.NonPublic | BindingFlags.Instance);
+                    type.RemoteIdField = type.Type.GetField(remoteField.Name, BindingFlags.NonPublic | BindingFlags.Instance);
+
+                    _proxyImplementations.Add(delegateType, type);
+                }
+            }
+
+
+
+            var delObj = Activator.CreateInstance(type.Type, channel);
+            Debug.Assert(type.LocalIdField != null, "type.LocalIdField != null");
+            Debug.Assert(type.RemoteIdField != null, "type.RemoteIdField != null");
+            type.LocalIdField.SetValue(delObj, localInstanceId);
+            type.RemoteIdField.SetValue(delObj, remoteInstanceId);
 
             return Delegate.CreateDelegate(delegateType, delObj, "Invoke");
         }
@@ -245,6 +295,27 @@ namespace AdvancedRpcLib
             return invokerField;
         }
 
+
+        private void CreateDestructor(TypeBuilder tb, FieldBuilder invokerField, FieldBuilder localField, FieldBuilder remoteField)
+        {
+            var destructor = tb.DefineMethod("Finalize", MethodAttributes.Family | MethodAttributes.Virtual |
+                                                         MethodAttributes.HideBySig,
+                CallingConventions.Standard,
+                typeof(void),
+                Type.EmptyTypes);
+            var dil = destructor.GetILGenerator();
+            dil.Emit(OpCodes.Ldarg_0);
+            dil.Emit(OpCodes.Ldfld, invokerField);
+            dil.Emit(OpCodes.Ldarg_0);
+            dil.Emit(OpCodes.Ldfld, localField);
+            dil.Emit(OpCodes.Ldarg_0);
+            dil.Emit(OpCodes.Ldfld, remoteField);
+            dil.EmitCall(OpCodes.Callvirt, typeof(IRpcChannel).GetMethod(nameof(IRpcChannel.RemoveInstance)),
+                null);
+            dil.Emit(OpCodes.Ret);
+        }
+
+
         private object ImplementInterface(Type interfaceType, IRpcChannel channel, int remoteInstanceId, int localInstanceId)
         {
             if (!AllowNonPublicInterfaceAccess && interfaceType.IsNotPublic)
@@ -252,119 +323,142 @@ namespace AdvancedRpcLib
                 throw new RpcFailedException("Cannot get non public interface.");
             }
 
-            var name = new AssemblyName("RpcDynamicTypes");
-            name.SetPublicKey(this.GetType().Assembly.GetName().GetPublicKey());
+            RpcTypeDefinition type;
 
-            var ab = AssemblyBuilder.DefineDynamicAssembly(name,
-                AssemblyBuilderAccess.RunAndCollect);
-            
-            /*
-#if !NETSTANDARD && DEBUG
-            ab = AssemblyBuilder.DefineDynamicAssembly(new AssemblyName("RpcDynamicTypes"),
-                AssemblyBuilderAccess.RunAndSave);
-#endif*/
-
-            //add a destructor so we can inform other side about us not needing the object anymore
-
-            var dm = ab.DefineDynamicModule("RpcDynamicTypes.dll");
-            var tb = dm.DefineType(interfaceType.Name + "Shadow");
-            
-            var invokerField = CreateConstructor(tb);
-            
-
-            var destructor = tb.DefineMethod("Finalize", MethodAttributes.Family | MethodAttributes.Virtual |
-                                                MethodAttributes.HideBySig,
-                                                CallingConventions.Standard,
-                                                typeof(void),
-                                                Type.EmptyTypes);
-            var dil = destructor.GetILGenerator();
-            dil.Emit(OpCodes.Ldarg_0);
-            dil.Emit(OpCodes.Ldfld, invokerField);
-            dil.Emit(OpCodes.Ldc_I4, localInstanceId);
-            dil.Emit(OpCodes.Ldc_I4, remoteInstanceId);
-            dil.EmitCall(OpCodes.Callvirt, typeof(IRpcChannel).GetMethod(nameof(IRpcChannel.RemoveInstance)), null);
-            dil.Emit(OpCodes.Ret);
-
-            var allInterfaces = interfaceType.GetInterfaces().Concat(new[] { interfaceType }).Where(i => i.IsInterface);
-
-            foreach (var intf in allInterfaces)
+            lock (_proxyImplementations)
             {
-                tb.AddInterfaceImplementation(intf);
-                foreach (var method in intf.GetMethods().Where(m=>!m.IsSpecialName))
+                if (!_proxyImplementations.TryGetValue(interfaceType, out type))
                 {
-                    ImplementMethod(tb, method, invokerField, remoteInstanceId, true);
+
+                    /*
+        #if !NETSTANDARD && DEBUG
+                    ab = AssemblyBuilder.DefineDynamicAssembly(new AssemblyName("RpcDynamicTypes"),
+                        AssemblyBuilderAccess.RunAndSave);
+        #endif*/
+
+                    //add a destructor so we can inform other side about us not needing the object anymore
+
+
+                    var tb = _moduleBuilder.DefineType(interfaceType.Name + "Shadow");
+
+                    var invokerField = CreateConstructor(tb);
+
+                    var (localField, remoteField) = ImplementIRpcObjectProxy(tb);
+
+                   CreateDestructor(tb, invokerField, localField, remoteField);
+
+                    var allInterfaces = interfaceType.GetInterfaces().Concat(new[] {interfaceType})
+                        .Where(i => i.IsInterface);
+
+                    foreach (var intf in allInterfaces)
+                    {
+                        tb.AddInterfaceImplementation(intf);
+                        foreach (var method in intf.GetMethods().Where(m => !m.IsSpecialName))
+                        {
+                            ImplementMethod(tb, method, invokerField, remoteField, true);
+                        }
+
+                        foreach (var property in intf.GetProperties())
+                        {
+                            var prop = tb.DefineProperty(property.Name, property.Attributes, property.PropertyType,
+                                null);
+                            if (property.GetMethod != null)
+                            {
+                                prop.SetGetMethod(ImplementMethod(tb, property.GetMethod, invokerField,
+                                    remoteField,
+                                    true));
+                            }
+
+                            if (property.SetMethod != null)
+                            {
+                                prop.SetSetMethod(ImplementMethod(tb, property.SetMethod, invokerField,
+                                    remoteField,
+                                    true));
+                            }
+                        }
+
+                        foreach (var evnt in intf.GetEvents())
+                        {
+                            if (evnt.AddMethod != null)
+                            {
+                                ImplementMethod(tb, evnt.AddMethod, invokerField, remoteField, true);
+                            }
+
+                            if (evnt.RemoveMethod != null)
+                            {
+                                ImplementMethod(tb, evnt.RemoveMethod, invokerField, remoteField, true, true);
+                            }
+                        }
+                    }
+
+
+                    type = new RpcTypeDefinition
+                    {
+                        Type = tb.CreateTypeInfo().AsType()
+                    };
+                    type.LocalIdField = type.Type.GetField(localField.Name, BindingFlags.NonPublic | BindingFlags.Instance);
+                    type.RemoteIdField = type.Type.GetField(remoteField.Name, BindingFlags.NonPublic | BindingFlags.Instance);
+
+                    _proxyImplementations.Add(interfaceType, type);
                 }
 
-                foreach (var property in intf.GetProperties())
-                {
-                    var prop = tb.DefineProperty(property.Name, property.Attributes, property.PropertyType, null);
-                    if (property.GetMethod != null)
-                    {
-                        prop.SetGetMethod(ImplementMethod(tb, property.GetMethod, invokerField, remoteInstanceId, true));
-                    }
-                    if (property.SetMethod != null)
-                    {
-                        prop.SetSetMethod(ImplementMethod(tb, property.SetMethod, invokerField, remoteInstanceId, true));
-                    }
-                }
-
-                foreach (var evnt in intf.GetEvents())
-                {
-                    if (evnt.AddMethod != null)
-                    {
-                        ImplementMethod(tb, evnt.AddMethod, invokerField, remoteInstanceId, true);
-                    }
-                    if (evnt.RemoveMethod != null)
-                    {
-                        ImplementMethod(tb, evnt.RemoveMethod, invokerField, remoteInstanceId, true);
-                    }
-                }
             }
-            
-            ImplementIRpcObjectProxy(tb, localInstanceId, remoteInstanceId);
-            
-            var type = tb.CreateTypeInfo().AsType();
             /*
 #if !NETSTANDARD && DEBUG
             ab.Save(@"RpcDynamicTypes.dll");
 #endif*/
 
 
-            return Activator.CreateInstance(type, channel);
+            var result = Activator.CreateInstance(type.Type, channel);
+            
+            Debug.Assert(type.LocalIdField != null, "type.LocalIdField != null");
+            Debug.Assert(type.RemoteIdField != null, "type.RemoteIdField != null");
+            type.LocalIdField.SetValue(result, localInstanceId);
+            type.RemoteIdField.SetValue(result, remoteInstanceId);
+
+            return result;
         }
 
-        private void ImplementIRpcObjectProxy(TypeBuilder tb, int localInstanceId, int remoteInstanceId)
+        private (FieldBuilder localField, FieldBuilder remoteField) ImplementIRpcObjectProxy(TypeBuilder tb)
         {
             tb.AddInterfaceImplementation(typeof(IRpcObjectProxy));
 
-            void DefineProp(string propName, int instanceId)
+            FieldBuilder DefineProp(string propName)
             {
+                var id = Guid.NewGuid();
+                var field = tb.DefineField($"_instanceId{id:N}", typeof(int), FieldAttributes.Private);
+                
+
 
                 var pb = tb.DefineProperty(propName,
                     PropertyAttributes.None, typeof(int), Type.EmptyTypes);
 
-                var mb = tb.DefineMethod($"get_InstanceId{Guid.NewGuid():N}",
+                var mb = tb.DefineMethod($"get_InstanceId{id:N}",
                     MethodAttributes.Private |
                     MethodAttributes.HideBySig |
                     MethodAttributes.NewSlot |
                     MethodAttributes.Virtual |
                     MethodAttributes.Final, typeof(int), Type.EmptyTypes);
                 var il = mb.GetILGenerator();
-                il.Emit(OpCodes.Ldc_I4, instanceId);
+                il.Emit(OpCodes.Ldarg_0); // this
+                il.Emit(OpCodes.Ldfld, field);
                 il.Emit(OpCodes.Ret);
 
 
                 tb.DefineMethodOverride(mb,
                     typeof(IRpcObjectProxy).GetProperty(propName).GetMethod);
                 pb.SetGetMethod(mb);
+                return field;
             }
 
-            DefineProp(nameof(IRpcObjectProxy.LocalInstanceId), localInstanceId);
-            DefineProp(nameof(IRpcObjectProxy.RemoteInstanceId), remoteInstanceId);
+            var localField = DefineProp(nameof(IRpcObjectProxy.LocalInstanceId));
+            var remoteField = DefineProp(nameof(IRpcObjectProxy.RemoteInstanceId));
 
+            return (localField, remoteField);
         }
 
-        private MethodBuilder ImplementMethod(TypeBuilder tb, MethodInfo method, FieldBuilder invokerField, int remoteInstanceId, bool overrideBase)
+        private MethodBuilder ImplementMethod(TypeBuilder tb, MethodInfo method, FieldBuilder invokerField,
+            FieldBuilder remoteField, bool overrideBase, bool isEventRemove = false)
         {
             var margs = method.GetParameters().Select(p => p.ParameterType).ToArray();
             var mb = tb.DefineMethod(method.Name, MethodAttributes.Public | MethodAttributes.Virtual,
@@ -374,7 +468,8 @@ namespace AdvancedRpcLib
             il.Emit(OpCodes.Ldarg_0);
             il.Emit(OpCodes.Ldfld, invokerField);
 
-            il.Emit(OpCodes.Ldc_I4, remoteInstanceId);
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Ldfld, remoteField);
             il.Emit(OpCodes.Ldstr, method.Name);
 
             il.Emit(OpCodes.Ldc_I4, margs.Length);

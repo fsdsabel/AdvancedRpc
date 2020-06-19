@@ -348,6 +348,95 @@ namespace AdvancedRpcLib.UnitTests
         [DataTestMethod]
         [DataRow(ChannelType.NamedPipe)]
         [DataRow(ChannelType.Tcp)]
+        public async Task CallbacksWork(ChannelType type)
+        {
+            bool callbackCalled = false;
+            var o = new TestObject();
+            var proxy = await Init<ITestObject>(o, type);
+            
+            proxy.SetCallback(i =>
+            {
+                Assert.AreEqual(42, i);
+                callbackCalled = true;
+            });
+            
+            GC.Collect(2);
+            GC.WaitForPendingFinalizers();
+
+            o.InvokeCallback();
+
+            Assert.IsTrue(callbackCalled);
+        }
+
+
+        class InnerTest
+        {
+            public async Task Run(RpcTests tests, ChannelType type)
+            {
+
+                bool wasCalled = false;
+
+                void OnChanged(object sender, CustomEventArgs e)
+                {
+                    wasCalled = true;
+                }
+
+                void AssertHasHandler(TestObject obj, bool shouldhave)
+                {
+                    var handler = typeof(TestObject).GetField(nameof(TestObject.TestEvent), BindingFlags.NonPublic | BindingFlags.Instance).GetValue(obj) as Delegate;
+
+                    if (shouldhave)
+                    {
+                        Assert.IsNotNull(handler);
+                    }
+                    else
+                    {
+                        Assert.IsNull(handler);
+                    }
+                }
+
+                var o = new TestObject();
+                var proxy = await tests.Init<ITestObject>(o, type);
+                proxy.TestEvent += OnChanged;
+
+                GC.Collect(2);
+                GC.WaitForPendingFinalizers();
+
+                AssertHasHandler(o, true);
+                o.InvokeTestEvent();
+                Assert.IsTrue(wasCalled);
+                wasCalled = false;
+                proxy.TestEvent -= OnChanged;
+                AssertHasHandler(o, false);
+                o.InvokeTestEvent();
+                Assert.IsFalse(wasCalled);
+            }
+        }
+
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
+        public void EventHandlerRemovedRemovesInstanceFromRepository(ChannelType type)
+        {
+            Task.Run(async () =>
+            {
+                await new InnerTest().Run(this, type); // make sure delegate is collectible
+            }).Wait();
+
+
+            GC.Collect(2);
+            GC.WaitForPendingFinalizers();
+
+            var localRepo = _clientChannel.GetPrivate<IRpcObjectRepository>("LocalRepository");
+            var rpcObjects = localRepo.GetPrivate<HashSet<RpcHandle>>("_rpcObjects");
+
+            Assert.AreEqual(0, rpcObjects.Count); // the event handler should be removed
+        }
+
+
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
         public async Task EventHandlersWithMultipleClientsWork(ChannelType type)
         {
             bool eventHandlerCalled = false;
@@ -439,7 +528,7 @@ namespace AdvancedRpcLib.UnitTests
 
             foreach (var t in threads) t.Start();
 
-            Assert.IsTrue(Task.WaitAll(threads.ToArray(), 200000));
+            Assert.IsTrue(Task.WaitAll(threads.ToArray(), 20000));
             Assert.IsTrue(threads.TrueForAll(t => t.Result));
         }
 
@@ -660,12 +749,16 @@ namespace AdvancedRpcLib.UnitTests
         public async Task ExceptionInConstructorIsDelivered(ChannelType type)
         {
 
-            var server = await CreateServer<IConstructorException>(null, type);
-            var client = await CreateClient(type);
+            using (var server = await CreateServer<IConstructorException>(null, type))
+            {
+                using (var client = await CreateClient(type))
+                {
 
-            server.ObjectRepository.RegisterSingleton<ConstructorException>();
+                    server.ObjectRepository.RegisterSingleton<ConstructorException>();
 
-            await client.GetServerObjectAsync<IConstructorException>();
+                    await client.GetServerObjectAsync<IConstructorException>();
+                }
+            }
         }
 
         [Serializable]
@@ -701,6 +794,10 @@ namespace AdvancedRpcLib.UnitTests
             ISubObject ReflectObj(ISubObject s);
 
             void ThrowException();
+
+            void SetCallback(Action<int> callback);
+
+            void InvokeCallback();
         }
 
         public interface ISubObject
@@ -725,6 +822,7 @@ namespace AdvancedRpcLib.UnitTests
 
         class TestObject : ITestObject2, IInternalInterface
         {
+            private Action<int> _callback;
             public bool WasCalled { get; set; }
 
 
@@ -785,6 +883,16 @@ namespace AdvancedRpcLib.UnitTests
             public void ThrowException()
             {
                 throw new ArgumentException("Fehler", "testparam");
+            }
+
+            public void SetCallback(Action<int> callback)
+            {
+                _callback = callback;
+            }
+
+            public void InvokeCallback()
+            {
+                _callback(42);
             }
 
             internal void InvokeTestEvent()

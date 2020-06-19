@@ -104,7 +104,8 @@ namespace AdvancedRpcLib
                     {
                         argumentType = Type.GetType(argument.TypeId) ?? argumentType; 
                     }
-                    return localRepository.GetInstance(instanceId) ?? remoteRepository.GetProxyObject(channel, argumentType, instanceId);
+                    return localRepository.GetInstance(instanceId) ??
+                           remoteRepository.GetProxyObject(channel, argumentType, instanceId);
                 case RpcType.Serialized:
                     var type = Type.GetType(argument.TypeId);
                     return serializer.ChangeType(argument.Value, type);
@@ -125,8 +126,7 @@ namespace AdvancedRpcLib
             }
         }
 
-        private RpcArgument CreateRpcArgument(ITransportChannel channel, IRpcObjectRepository localRepository, 
-            object argument, Type argumentType)
+        private RpcArgument CreateRpcArgument(ITransportChannel channel, IRpcObjectRepository localRepository, object argument, Type argumentType)
         {
             string typeid = null;
             RpcType type = RpcType.Proxy;

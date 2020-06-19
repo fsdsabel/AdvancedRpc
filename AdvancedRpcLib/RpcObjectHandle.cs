@@ -13,6 +13,7 @@ namespace AdvancedRpcLib
         {
             InstanceId = CreateInstanceId(); 
             _type = type;
+            IsSingleton = true;
             Pin(type);
             InterfaceTypes = type.GetInterfaces();
         }
@@ -20,7 +21,7 @@ namespace AdvancedRpcLib
         public RpcObjectHandle CreateObject()
         {
             var obj = Activator.CreateInstance(_type);
-            return new RpcObjectHandle(obj, true, InstanceId);
+            return new RpcObjectHandle(obj, true, true, InstanceId);
         }
     }
 
@@ -29,6 +30,8 @@ namespace AdvancedRpcLib
         private static int _idCounter;
         private static readonly object IdCounterLock = new object();
         private object _pin;
+
+        
 
         protected RpcHandle() {}
 
@@ -39,6 +42,8 @@ namespace AdvancedRpcLib
 
         public bool IsPinned => _pin != null;
         public int InstanceId { get; protected set; }
+
+        public bool IsSingleton { get; protected set; }
 
         protected int CreateInstanceId(int? instanceId = null)
         {
@@ -82,9 +87,13 @@ namespace AdvancedRpcLib
 
     public sealed class RpcObjectHandle : RpcHandle
     {
-        
-        public RpcObjectHandle(object obj, bool pinned = false, int? instanceId = null)
+        private readonly bool _pinned;
+
+
+        public RpcObjectHandle(object obj, bool pinned = false, bool singleton = false, int? instanceId = null)
         {
+            _pinned = pinned;
+            IsSingleton = singleton;
             InstanceId = CreateInstanceId(instanceId); 
             
             Object = new WeakReference<object>(obj);
@@ -109,8 +118,13 @@ namespace AdvancedRpcLib
                     {
                         InterfaceTypes = o.GetType().GetInterfaces();
                     }
+                    if (_pinned)
+                    {
+                        Pin(o);
+                    }
                 }
                 _object = value;
+                
             }
         }
 
