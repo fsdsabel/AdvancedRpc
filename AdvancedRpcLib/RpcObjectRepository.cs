@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
-using System.Runtime.InteropServices;
 using AdvancedRpcLib.Channels;
 using AdvancedRpcLib.Helpers;
 
@@ -26,7 +25,7 @@ namespace AdvancedRpcLib
         private readonly HashSet<RpcHandle> _rpcObjects = new HashSet<RpcHandle>();
         
         private static readonly ModuleBuilder _moduleBuilder;
-        private static readonly Dictionary<Type, RpcTypeDefinition> _proxyImplementations = new Dictionary<Type, RpcTypeDefinition>();
+        private static readonly Dictionary<int, RpcTypeDefinition> _proxyImplementations = new Dictionary<int, RpcTypeDefinition>();
 
         static RpcObjectRepository()
         {
@@ -54,9 +53,25 @@ namespace AdvancedRpcLib
             return CreateTypeId(obj.GetType());
         }
 
-        public string CreateTypeId(Type type)
+        public virtual Type[] ResolveTypes(string typeId, Type localType)
         {
-            return type.AssemblyQualifiedName;
+            return typeId.Split(';')
+                .Select(t => Type.GetType(t) ?? localType)
+                .Distinct()
+                .ToArray();
+        }
+
+        public virtual string CreateTypeId(Type type)
+        {
+            if (type.IsArray || type.IsValueType || type.IsSubclassOf(typeof(Delegate)))
+            {
+                return type.AssemblyQualifiedName;
+            }
+
+            return string.Join(";",
+                (type.IsInterface ? new[] {type.AssemblyQualifiedName} : new string[0])
+                    .Concat(type.GetInterfaces()
+                    .Select(i => i.AssemblyQualifiedName)));
         }
 
         private void Purge()
@@ -92,11 +107,12 @@ namespace AdvancedRpcLib
             lock (_rpcObjects)
             {
                 Purge();
+                var objTypes = ResolveTypes(typeId, null);
                 foreach (var obj in _rpcObjects)
                 {
-                    foreach (var intf in obj.InterfaceTypes)
+                    foreach (var objType in objTypes)
                     {
-                        if (CreateTypeId(intf) == typeId)
+                        if (obj.InterfaceTypes.TryGetValue(objType, out _))
                         {
                             if (obj is RpcObjectHandle oh)
                             {
@@ -104,7 +120,7 @@ namespace AdvancedRpcLib
                             }
 
                             // a type was registered - create lazily
-                            return CreateObjectHandleFromTypeHandle((RpcObjectTypeHandle) obj);
+                            return CreateObjectHandleFromTypeHandle((RpcObjectTypeHandle)obj);
                         }
                     }
                 }
@@ -210,7 +226,7 @@ namespace AdvancedRpcLib
             }
         }
 
-        public object GetProxyObject(IRpcChannel channel, Type interfaceType, int remoteInstanceId)
+        public object GetProxyObject(IRpcChannel channel, Type[] interfaceTypes, int remoteInstanceId)
         {
             lock (_rpcObjects)
             {
@@ -223,14 +239,14 @@ namespace AdvancedRpcLib
                     }
                 }
 
-                bool isDelegate = interfaceType.IsSubclassOf(typeof(Delegate));
+                bool isDelegate = interfaceTypes.Length == 1 && interfaceTypes[0].IsSubclassOf(typeof(Delegate));
 
                 var result = new RpcObjectHandle(null, pinned:/*isDelegate && !_clientRepository,*/false, instanceId: remoteInstanceId);
                 _rpcObjects.Add(result);
 
                 var instance = isDelegate
-                    ? ImplementDelegate(interfaceType, channel, remoteInstanceId, result.InstanceId)
-                    : ImplementInterface(interfaceType, channel, remoteInstanceId, result.InstanceId);
+                    ? ImplementDelegate(interfaceTypes[0], channel, remoteInstanceId, result.InstanceId)
+                    : ImplementInterfaces(interfaceTypes, channel, remoteInstanceId, result.InstanceId);
 
                 
 
@@ -241,7 +257,21 @@ namespace AdvancedRpcLib
 
         public T GetProxyObject<T>(IRpcChannel channel, int remoteInstanceId)
         {
-            return (T)GetProxyObject(channel, typeof(T), remoteInstanceId);
+            return (T) GetProxyObject(
+                channel,
+                new[] {typeof(T)}.Concat(typeof(T).GetInterfaces()).ToArray(),
+                remoteInstanceId);
+        }
+
+        private int CreateTypesHash(params Type[] types)
+        {
+            var hash = new HashCode();
+            foreach (var type in types)
+            {
+                hash.Add(type);
+            }
+
+            return hash.ToHashCode();
         }
 
         private object ImplementDelegate(Type delegateType, IRpcChannel channel, int remoteInstanceId, int localInstanceId)
@@ -249,7 +279,8 @@ namespace AdvancedRpcLib
             RpcTypeDefinition type;
             lock (_proxyImplementations)
             {
-                if (!_proxyImplementations.TryGetValue(delegateType, out type))
+                var hash = CreateTypesHash(delegateType);
+                if (!_proxyImplementations.TryGetValue(hash, out type))
                 {
                     var tb = _moduleBuilder.DefineType(delegateType.Name + "Shadow");
                     var invokerField = CreateConstructor(tb);
@@ -266,7 +297,7 @@ namespace AdvancedRpcLib
                     type.LocalIdField = type.Type.GetField(localField.Name, BindingFlags.NonPublic | BindingFlags.Instance);
                     type.RemoteIdField = type.Type.GetField(remoteField.Name, BindingFlags.NonPublic | BindingFlags.Instance);
 
-                    _proxyImplementations.Add(delegateType, type);
+                    _proxyImplementations.Add(hash, type);
                 }
             }
 
@@ -317,18 +348,24 @@ namespace AdvancedRpcLib
         }
 
 
-        private object ImplementInterface(Type interfaceType, IRpcChannel channel, int remoteInstanceId, int localInstanceId)
+        private object ImplementInterfaces(Type[] interfaceTypes, IRpcChannel channel, int remoteInstanceId, int localInstanceId)
         {
-            if (!AllowNonPublicInterfaceAccess && interfaceType.IsInterface && !interfaceType.IsPublic && !interfaceType.IsNestedPublic)
+            if (!AllowNonPublicInterfaceAccess) 
             {
-                throw new RpcFailedException("Cannot get non public interface.");
+                if (interfaceTypes.All(interfaceType =>
+                    interfaceType.IsInterface && !interfaceType.IsPublic && !interfaceType.IsNestedPublic))
+                {
+                    throw new RpcFailedException("Cannot get non public interface.");
+                }
             }
 
             RpcTypeDefinition type;
 
             lock (_proxyImplementations)
             {
-                if (!_proxyImplementations.TryGetValue(interfaceType, out type))
+                var hash = CreateTypesHash(interfaceTypes);
+
+                if (!_proxyImplementations.TryGetValue(hash, out type))
                 {
 
                     /*
@@ -340,7 +377,7 @@ namespace AdvancedRpcLib
                     //add a destructor so we can inform other side about us not needing the object anymore
 
 
-                    var tb = _moduleBuilder.DefineType(interfaceType.Name + "Shadow");
+                    var tb = _moduleBuilder.DefineType($"I{Guid.NewGuid():N}Shadow");
 
                     var invokerField = CreateConstructor(tb);
 
@@ -348,10 +385,11 @@ namespace AdvancedRpcLib
 
                    CreateDestructor(tb, invokerField, localField, remoteField);
 
-                    var allInterfaces = interfaceType.GetInterfaces().Concat(new[] {interfaceType})
-                        .Where(i => i.IsInterface);
+                   var allInterfaceTypes = AllowNonPublicInterfaceAccess
+                       ? interfaceTypes
+                       : interfaceTypes.Where(i => i.IsPublic || i.IsNestedPublic);
 
-                    foreach (var intf in allInterfaces)
+                    foreach (var intf in allInterfaceTypes)
                     {
                         tb.AddInterfaceImplementation(intf);
                         foreach (var method in intf.GetMethods().Where(m => !m.IsSpecialName))
@@ -400,7 +438,7 @@ namespace AdvancedRpcLib
                     type.LocalIdField = type.Type.GetField(localField.Name, BindingFlags.NonPublic | BindingFlags.Instance);
                     type.RemoteIdField = type.Type.GetField(remoteField.Name, BindingFlags.NonPublic | BindingFlags.Instance);
 
-                    _proxyImplementations.Add(interfaceType, type);
+                    _proxyImplementations.Add(hash, type);
                 }
 
             }

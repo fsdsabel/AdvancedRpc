@@ -103,6 +103,8 @@ namespace AdvancedRpcLib
 
         string CreateTypeId(object obj);
 
+        Type[] ResolveTypes(string typeId, Type localType);
+
         void RegisterSingleton(object singleton);
 
         void RegisterSingleton<T>();
@@ -111,7 +113,7 @@ namespace AdvancedRpcLib
 
         T GetProxyObject<T>(IRpcChannel channel, int remoteInstanceId);
 
-        object GetProxyObject(IRpcChannel channel, Type interfaceType, int remoteInstanceId);
+        object GetProxyObject(IRpcChannel channel, Type[] interfaceTypes, int remoteInstanceId);
 
         object GetInstance(int instanceId);
 

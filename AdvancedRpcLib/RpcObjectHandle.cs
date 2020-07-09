@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using AdvancedRpcLib.Channels;
@@ -15,7 +16,7 @@ namespace AdvancedRpcLib
             _type = type;
             IsSingleton = true;
             Pin(type);
-            InterfaceTypes = type.GetInterfaces();
+            InterfaceTypes = new HashSet<Type>(type.GetInterfaces());
         }
 
         public RpcObjectHandle CreateObject()
@@ -63,7 +64,7 @@ namespace AdvancedRpcLib
             _pin = obj;
         }
 
-        public Type[] InterfaceTypes { get; protected set; }
+        public HashSet<Type> InterfaceTypes { get; protected set; }
 
         public override int GetHashCode()
         {
@@ -111,12 +112,12 @@ namespace AdvancedRpcLib
             get => _object;
             internal set
             {
-                InterfaceTypes = new Type[0];
+                InterfaceTypes = new HashSet<Type>();
                 if (value != null && value.TryGetTarget(out var o))
                 {
                     if (o != null)
                     {
-                        InterfaceTypes = o.GetType().GetInterfaces();
+                        InterfaceTypes = new HashSet<Type>(o.GetType().GetInterfaces());
                     }
                     if (_pinned)
                     {

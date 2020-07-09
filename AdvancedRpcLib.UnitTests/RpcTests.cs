@@ -199,6 +199,16 @@ namespace AdvancedRpcLib.UnitTests
         [DataTestMethod]
         [DataRow(ChannelType.NamedPipe)]
         [DataRow(ChannelType.Tcp)]
+        public async Task CallWithGuidSucceeds(ChannelType type)
+        {
+            var o = new TestObject();
+            var guid = Guid.NewGuid();
+            Assert.AreEqual(guid, (await Init<ITestObject>(o, type)).CallWithGuid(guid));
+        }
+
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
         public async Task CallWithStringsSucceeds(ChannelType type)
         {
             var o = new TestObject();
@@ -771,6 +781,28 @@ namespace AdvancedRpcLib.UnitTests
             }
         }
 
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
+        public async Task ObjectArraysAsResultWithDifferentTypesWork(ChannelType type)
+        {
+            var o = new ObjectArrayTest();
+            var co = await Init<IObjectArrayTest>(o, type);
+
+            var data = co.GetData();
+
+            Assert.AreEqual(2, data.Length);
+            Assert.IsInstanceOfType(data[0], typeof(ISubObject));
+            Assert.IsNotInstanceOfType(data[0], typeof(IRoundTrip));
+            Assert.IsInstanceOfType(data[1], typeof(ISubObject));
+            Assert.IsInstanceOfType(data[1], typeof(IRoundTrip));
+
+            // make sure we implemented the interfaces and didn't use the object
+            StringAssert.StartsWith(data[0].GetType().Name, "I");
+            StringAssert.StartsWith(data[1].GetType().Name, "I");
+            
+        }
+
         [Serializable]
         public class CustomEventArgs : EventArgs
         {
@@ -808,6 +840,8 @@ namespace AdvancedRpcLib.UnitTests
             void SetCallback(Action<int> callback);
 
             void InvokeCallback();
+
+            Guid CallWithGuid(Guid guid);
         }
 
         public interface ISubObject
@@ -848,6 +882,11 @@ namespace AdvancedRpcLib.UnitTests
             public string SimpleStringResult()
             {
                 return "dummy";
+            }
+
+            public Guid CallWithGuid(Guid guid)
+            {
+                return guid;
             }
 
             public int SimpleCalc(int a, int b)
@@ -1009,6 +1048,48 @@ namespace AdvancedRpcLib.UnitTests
             public ConstructorException()
             {
                 throw new ArgumentException();
+            }
+        }
+
+        public interface IObjectArrayTest
+        {
+            object[] GetData();
+
+            void SetData(object[] data);
+        }
+
+        class MultipleIntf : ISubObject, IRoundTrip
+        {
+            public string Name { get; }
+            public ISubObject GetObject()
+            {
+                throw new NotImplementedException();
+            }
+
+            public ISubObject VerifyObject(ISubObject obj)
+            {
+                throw new NotImplementedException();
+            }
+        }
+
+        class ObjectArrayTest : IObjectArrayTest
+        {
+            public object[] GetData()
+            {
+                return new object[]
+                {
+                    new SubObject(),
+                    new MultipleIntf()
+                };
+            }
+
+            public void SetData(object[] data)
+            {
+                Assert.AreEqual(2, data.Length);
+                Assert.IsInstanceOfType(data[0], typeof(ISubObject));
+                Assert.IsNotInstanceOfType(data[0], typeof(IRoundTrip));
+                Assert.IsInstanceOfType(data[1], typeof(ISubObject));
+                Assert.IsInstanceOfType(data[1], typeof(IRoundTrip));
             }
         }
     }

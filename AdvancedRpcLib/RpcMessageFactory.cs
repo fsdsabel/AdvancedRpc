@@ -100,17 +100,18 @@ namespace AdvancedRpcLib
                     return serializer.ChangeType(argument.Value, argumentType);
                 case RpcType.Proxy:
                     var instanceId = (int) serializer.ChangeType(argument.Value, typeof(int));
-                    if (argument.TypeId != null)
+                    var instance = localRepository.GetInstance(instanceId);
+                    if (instance == null)
                     {
-                        argumentType = Type.GetType(argument.TypeId) ?? argumentType; 
+                        var intfTypes = localRepository.ResolveTypes(argument.TypeId, argumentType);
+                        instance = remoteRepository.GetProxyObject(channel, intfTypes, instanceId);
                     }
-                    return localRepository.GetInstance(instanceId) ??
-                           remoteRepository.GetProxyObject(channel, argumentType, instanceId);
+                    return instance;
                 case RpcType.Serialized:
-                    var type = Type.GetType(argument.TypeId);
+                    var type = localRepository.ResolveTypes(argument.TypeId, argumentType)[0];
                     return serializer.ChangeType(argument.Value, type);
                 case RpcType.ObjectArray:
-                    var arrayType = Type.GetType(argument.TypeId);
+                    var arrayType = localRepository.ResolveTypes(argument.TypeId, argumentType)[0];
                     var elementType = arrayType?.GetElementType() ?? throw new InvalidOperationException();
                     var array = Array.CreateInstance(elementType, (int)argument.Value);
 
@@ -193,5 +194,7 @@ namespace AdvancedRpcLib
                 ArrayElements = arrayElements
             };
         }
+
+      
     }
 }

@@ -6,5 +6,6 @@
 - [done] ping pong -> letzten Client detektieren -> Serverevent
 - [done] IPC-Implementierung -> Generalisieren der Channel-Implementierung
 - [done] Streaming of larger Datasets (IEnumerable results)
+- [done] object arrays with multiple sub types
 
 Data Class (that just serializes properties and doesn't call remote again? i.e. for querydata) - this is done, just annotate with [Serializable]

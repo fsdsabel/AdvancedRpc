@@ -11,6 +11,7 @@ AdvancedRPC is a remote procedure call library for .NET. It differs from common 
 - No need for serialization annotations, just publish an interface
 - Support for multiple clients with notification on connection and disconnection
 - .NET 4.8, .NET Standard 2.0 and .NET Standard 2.1
+- **Very easy to setup:** No need to start a web service or define proto files. Just define an interface that is shared between applications and you are ready.
 
 ## Example
 
@@ -110,6 +111,8 @@ See unit tests for more advanced scenarios.
 
 - If you return a plain static object that doesn't need to know about server changes, use the `Serializable` attribute on the implementation. In that case the object will be serialized and copied to the client or server without creating a proxy object. This can be more efficient for data objects if you have a lot of properties and deep hierarchies. This behaves like a REST call.
 - Do not return or pass IEnumerable, as this will result in a remote call for every `MoveNext` when iterating over it. Instead, use an array in those cases.
+- Watch out for memory leaks. AdvancedRPC handles a lot of scenarios for you but take care to remove your event listeners.
+- **CAREFUL!**  Every remote call can throw an exception if the server goes down.
 
 ## Restrictions
 
