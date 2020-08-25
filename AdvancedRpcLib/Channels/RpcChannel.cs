@@ -255,6 +255,7 @@ namespace AdvancedRpcLib.Channels
             {
                 case RpcMessageType.CallMethod:
                 {
+                    Exception resultException = null;
                     RpcCallResultMessage resultMessage;
                     IRpcServerContextObject remoteRpcServerContextObject = null;
                     var m = Serializer.DeserializeMessage<RpcMethodCallMessage>(data);
@@ -318,11 +319,13 @@ namespace AdvancedRpcLib.Channels
                     catch (TargetInvocationException ex)
                     {
                         LogTrace($"Method call resulted in exception: {ex}");
+                        resultException = ex.InnerException;
                         resultMessage = MessageFactory.CreateExceptionResultMessage(m, ex.InnerException);
                     }
                     catch (Exception ex)
                     {
                         _logger?.LogError($"Failed to process message call: {ex}");
+                        resultException = ex;
                         resultMessage = MessageFactory.CreateExceptionResultMessage(m, ex);
                     }
                     finally
@@ -335,7 +338,27 @@ namespace AdvancedRpcLib.Channels
                     }
 
                     LogTrace("Serialising response.");
-                    var response = Serializer.SerializeMessage(resultMessage);
+                    byte[] response;
+                    try
+                    {
+                        response = Serializer.SerializeMessage(resultMessage);
+                    }
+                    catch(Exception ex)
+                    {
+                        if (resultMessage.Type == RpcMessageType.Exception)
+                        {
+                            _logger?.LogError(ex, $"Failed to serialize result exception of type '{resultException?.GetType()}'");
+                            // if the exception is not serializable, do our best
+                            resultMessage = MessageFactory.CreateExceptionResultMessage(m,
+                                new Exception(resultException?.Message ?? "Internal Error"));
+                            response = Serializer.SerializeMessage(resultMessage);
+                        }
+                        else
+                        {
+                            throw;
+                        }
+                    }
+
                     LogTrace("Sending response.");
                     SendMessage(channel.GetStream(), response);
                     LogTrace("Sent response");
