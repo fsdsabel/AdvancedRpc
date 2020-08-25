@@ -4,6 +4,15 @@
     <TargetFrameworks>net48;netstandard2.0;netstandard2.1</TargetFrameworks>
     <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>AdvancedRpcLib.snk</AssemblyOriginatorKeyFile>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Authors>Daniel Sabel</Authors>
+    <Company />
+    <Product />
+    <Copyright>Daniel Sabel</Copyright>
+    <Description>AdvancedRPC is a remote procedure call library for .NET. It differs from common solutions like REST, GRPC or WebSockets in that it supports an object hierarchy similar to .NET Remoting. I wrote the library mainly as a replacement for .NET Remoting to make our corporate application ready for .NET Core. It relies heavily on the ability to make remote procedure calls on objects.</Description>
+    <PackageReleaseNotes>1.0.0 Initial release</PackageReleaseNotes>
+    <RepositoryUrl>https://github.com/fsdsabel/AdvancedRpc</RepositoryUrl>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(TargetFramework)'!='net48'">
@@ -15,8 +24,15 @@
     <PackageReference Condition="'$(TargetFramework)' != 'net48'" Include="System.IO.Pipes.AccessControl" Version="4.5.1" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'" >
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
     <PackageReference Include="System.Reflection.Emit" Version="4.7.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\LICENSE">
+      <Pack>True</Pack>
+      <PackagePath></PackagePath>
+    </None>
   </ItemGroup>
 
   
