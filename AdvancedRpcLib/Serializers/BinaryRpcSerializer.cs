@@ -39,6 +39,10 @@ namespace AdvancedRpcLib.Serializers
 
         public virtual object ChangeType(object value, Type targetType)
         {
+            if (targetType.IsInstanceOfType(value))
+            {
+                return value;
+            }
             return Convert.ChangeType(value, targetType);
         }
     }

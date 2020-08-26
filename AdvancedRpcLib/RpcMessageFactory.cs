@@ -162,7 +162,8 @@ namespace AdvancedRpcLib
             }
             else if (argumentType != typeof(object) &&
                      !argumentType.IsSubclassOf(typeof(Delegate)) &&
-                     argumentType.GetCustomAttribute<SerializableAttribute>() != null)
+                     (argumentType.GetCustomAttribute<SerializableAttribute>() != null ||
+                      (argument.GetType().GetCustomAttribute<SerializableAttribute>() != null)))
             {
                 type = RpcType.Serialized;
                 typeid = localRepository.CreateTypeId(argument);
