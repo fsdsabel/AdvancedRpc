@@ -208,12 +208,19 @@ namespace AdvancedRpcLib.Channels
             }))
             {
                 TResult result = default;
-                RegisterMessageCallback(channel, (data) =>
+                RegisterMessageCallback(channel, (data, bareMsg) =>
                 {
-                    var bareMsg = serializer.DeserializeMessage<RpcMessage>(data);
                     if (bareMsg.CallId == callId)
                     {
-                        result = serializer.DeserializeMessage<TResult>(data);
+                        if (bareMsg is TResult msg)
+                        {
+                            result = msg;
+                        }
+                        else
+                        {
+                            result = serializer.DeserializeMessage<TResult>(data);
+                        }
+
                         re.Set();
                         return true;
                     }
@@ -258,7 +265,7 @@ namespace AdvancedRpcLib.Channels
                     Exception resultException = null;
                     RpcCallResultMessage resultMessage;
                     IRpcServerContextObject remoteRpcServerContextObject = null;
-                    var m = Serializer.DeserializeMessage<RpcMethodCallMessage>(data);
+                    var m = msg as RpcMethodCallMessage ?? Serializer.DeserializeMessage<RpcMethodCallMessage>(data);
                     try
                     {
                         LogTrace($"Received method call '{m.MethodName}' with instance id '{m.InstanceId}'");
@@ -398,7 +405,7 @@ namespace AdvancedRpcLib.Channels
                     try
                     {
                         // ReSharper disable once InconsistentlySynchronizedField
-                        if (!_messageNotifications[channel].Notify(data))
+                        if (!_messageNotifications[channel].Notify(data, Serializer))
                         {
                             _logger?.LogError($"Failed to process message.");
                         }

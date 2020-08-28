@@ -113,6 +113,17 @@ See unit tests for more advanced scenarios.
 - Do not return or pass IEnumerable, as this will result in a remote call for every `MoveNext` when iterating over it. Instead, use an array in those cases.
 - Watch out for memory leaks. AdvancedRPC handles a lot of scenarios for you but take care to remove your event listeners.
 - **CAREFUL!**  Every remote call can throw an exception if the server goes down.
+- If you transfer large objects and use .NET Framework 4.7.2 or 4.8 please add an AppCompat switch in your App.config to improve performance
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <runtime>
+    <!-- Use this switch to make BinaryFormatter fast with large object graphs starting with .NET 4.7.2 -->
+      <AppContextSwitchOverrides value="Switch.System.Runtime.Serialization.UseNewMaxArraySize=true" />
+  </runtime>
+</configuration>
+```
 
 ## Restrictions
 

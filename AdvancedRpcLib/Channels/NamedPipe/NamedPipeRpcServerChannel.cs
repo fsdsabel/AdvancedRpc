@@ -68,7 +68,7 @@ namespace AdvancedRpcLib.Channels.NamedPipe
                     {
                         var client = new NamedPipeTransportChannel(this, pipe);
                         AddChannel(client);
-                        RegisterMessageCallback(client, data => HandleReceivedData(client, data), false);
+                        RegisterMessageCallback(client, (data, msg) => HandleReceivedData(client, data, msg), false);
                         RunReaderLoop(client, () => OnClientDisconnected(new ChannelConnectedEventArgs<NamedPipeTransportChannel>(client)));
                     }
                 }

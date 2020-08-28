@@ -40,7 +40,7 @@ namespace AdvancedRpcLib.Channels.Tcp
                 {
                     var client = new TcpTransportChannel(this, _listener.AcceptTcpClient());
                     AddChannel(client);
-                    RegisterMessageCallback(client, data => HandleReceivedData(client, data), false);
+                    RegisterMessageCallback(client, (data, msg) => HandleReceivedData(client, data, msg), false);
                     
                     RunReaderLoop(client, () => OnClientDisconnected(new ChannelConnectedEventArgs<TcpTransportChannel>(client)));
                 }

@@ -6,7 +6,7 @@ namespace AdvancedRpcLib.Helpers
 {
     class AsyncNotification
     {
-        public delegate bool DataReceivedDelegate(byte[] data);
+        public delegate bool DataReceivedDelegate(byte[] data, RpcMessage message);
 
         private readonly List<Tuple<DataReceivedDelegate, bool>> _callbacks = new List<Tuple<DataReceivedDelegate, bool>>();
 
@@ -18,18 +18,20 @@ namespace AdvancedRpcLib.Helpers
             }
         }
 
-        public bool Notify(byte[] data)
+        public bool Notify(byte[] data, IRpcSerializer serializer)
         {
             Tuple<DataReceivedDelegate, bool>[] callbacks;
             lock (_callbacks)
             {
                 callbacks = _callbacks.ToArray();
             }
+
+            var msg = serializer.DeserializeMessage<RpcMessage>(data);
             for (int i = 0; i < callbacks.Length; i++)
             {
                 try
                 {
-                    if (callbacks[i].Item1.Invoke(data))
+                    if (callbacks[i].Item1.Invoke(data, msg))
                     {
                         if (callbacks[i].Item2)
                         {
