@@ -54,7 +54,7 @@ namespace AdvancedRpcLib.Channels.NamedPipe
         [DllImport("kernel32.dll", SetLastError = true)]
         static extern SafePipeHandle CreateNamedPipe(string lpName, PipeOpenModeFlags dwOpenMode,
             PipeModeFlags dwPipeMode, uint nMaxInstances, uint nOutBufferSize, uint nInBufferSize,
-            uint nDefaultTimeOut, SECURITY_ATTRIBUTES lpSecurityAttributes);
+            uint nDefaultTimeOut, ref SECURITY_ATTRIBUTES lpSecurityAttributes);
 
         [DllImport("kernel32.dll", SetLastError = true)]
         static extern SafePipeHandle CreateNamedPipe(string lpName, PipeOpenModeFlags dwOpenMode,
@@ -86,7 +86,7 @@ namespace AdvancedRpcLib.Channels.NamedPipe
                     PipeOpenModeFlags.PIPE_ACCESS_DUPLEX | PipeOpenModeFlags.FILE_FLAG_OVERLAPPED,
                     PipeModeFlags.PIPE_TYPE_BYTE | PipeModeFlags.PIPE_WAIT | PipeModeFlags.PIPE_ACCEPT_REMOTE_CLIENTS | PipeModeFlags.PIPE_READMODE_BYTE,
                     255,
-                    0, 0, 0, secAttr);
+                    0, 0, 0, ref secAttr);
 
                 if (pipeHandle.IsInvalid)
                 {
