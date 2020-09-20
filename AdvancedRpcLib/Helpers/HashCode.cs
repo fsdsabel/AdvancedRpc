@@ -22,8 +22,7 @@ namespace System
         private uint _length;
 
         private static uint GenerateGlobalSeed()
-        {
-            uint result;
+        {            
             byte[] buf = new byte[4];
             new Random().NextBytes(buf);
             return BitConverter.ToUInt32(buf, 0);

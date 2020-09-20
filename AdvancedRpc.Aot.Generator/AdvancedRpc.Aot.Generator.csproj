@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="Templates\ProxyClass.liquid" />
+    <None Remove="Templates\ProxyFile.liquid" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Templates\ProxyFile.liquid" />
+    <EmbeddedResource Include="Templates\ProxyClass.liquid" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommandLineParser" Version="2.8.0" />
+    <PackageReference Include="DotLiquid" Version="2.0.361" />
+    <PackageReference Include="Microsoft.Build" Version="16.6.0" />
+    <PackageReference Include="Microsoft.Build.Utilities.Core" Version="16.6.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="3.7.0" />
+  </ItemGroup>
+
+</Project>

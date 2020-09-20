@@ -9,7 +9,8 @@ using AdvancedRpcLib.Helpers;
 
 namespace AdvancedRpcLib
 {
-    public class RpcObjectRepository : IRpcObjectRepository
+
+    public class RpcObjectRepository : RpcObjectRepositoryBase
     {
         class RpcTypeDefinition
         {
@@ -21,8 +22,6 @@ namespace AdvancedRpcLib
         }
        
 
-        private readonly bool _clientRepository;
-        private readonly HashSet<RpcHandle> _rpcObjects = new HashSet<RpcHandle>();
         
         private static readonly ModuleBuilder _moduleBuilder;
         private static readonly Dictionary<int, RpcTypeDefinition> _proxyImplementations = new Dictionary<int, RpcTypeDefinition>();
@@ -36,197 +35,11 @@ namespace AdvancedRpcLib
             _moduleBuilder = assemblyBuilder.DefineDynamicModule("RpcDynamicTypes.dll");
         }
 
-        public RpcObjectRepository(bool clientRepository)
+        public RpcObjectRepository(bool clientRepository) : base(clientRepository)
         {
-            _clientRepository = clientRepository;
         }
 
-        public bool AllowNonPublicInterfaceAccess { get; set; }
-
-        public string CreateTypeId<T>()
-        {
-            return CreateTypeId(typeof(T));
-        }
-
-        public string CreateTypeId(object obj)
-        {
-            return CreateTypeId(obj.GetType());
-        }
-
-        public virtual Type[] ResolveTypes(string typeId, Type localType)
-        {
-            return typeId.Split(';')
-                .Select(t => Type.GetType(t) ?? localType)
-                .Distinct()
-                .ToArray();
-        }
-
-        public virtual string CreateTypeId(Type type)
-        {
-            if (type.IsArray || type.IsValueType || type.IsSubclassOf(typeof(Delegate)))
-            {
-                return type.AssemblyQualifiedName;
-            }
-
-            return string.Join(";",
-                (type.IsInterface ? new[] {type.AssemblyQualifiedName} : new string[0])
-                    .Concat(type.GetInterfaces()
-                    .Select(i => i.AssemblyQualifiedName)));
-        }
-
-        private void Purge()
-        {
-         //   if (_clientRepository) // never purge on server side, they are only removed by explicit client calls
-            {
-                lock (_rpcObjects)
-                {
-                    foreach (var o in _rpcObjects.OfType<RpcObjectHandle>().ToArray())
-                    {
-                        if (!o.Object.TryGetTarget(out var _))
-                        {
-                            _rpcObjects.Remove(o);
-                        }
-                    }
-                }
-            }
-        }
-
-        private RpcObjectHandle CreateObjectHandleFromTypeHandle(RpcObjectTypeHandle handle)
-        {
-            lock (_rpcObjects)
-            {
-                var created = handle.CreateObject();
-                _rpcObjects.Remove(handle);
-                _rpcObjects.Add(created);
-                return created;
-            }
-        }
-
-        public RpcObjectHandle GetObject(string typeId)
-        {
-            lock (_rpcObjects)
-            {
-                Purge();
-                var objTypes = ResolveTypes(typeId, null);
-                foreach (var obj in _rpcObjects)
-                {
-                    foreach (var objType in objTypes)
-                    {
-                        if (obj.InterfaceTypes.TryGetValue(objType, out _))
-                        {
-                            if (obj is RpcObjectHandle oh)
-                            {
-                                return oh;
-                            }
-
-                            // a type was registered - create lazily
-                            return CreateObjectHandleFromTypeHandle((RpcObjectTypeHandle)obj);
-                        }
-                    }
-                }
-            }
-            return null;
-        }
-
-        public void RegisterSingleton(object singleton)
-        {
-            lock (_rpcObjects)
-            {
-                Purge();
-                var v = new RpcObjectHandle(singleton, true, true);
-                _rpcObjects.Add(v);
-            }
-        }
-
-        public void RegisterSingleton<T>()
-        {
-            lock (_rpcObjects)
-            {
-                var v = new RpcObjectTypeHandle(typeof(T));
-                _rpcObjects.Add(v);
-            }
-        }
-
-        public RpcObjectHandle AddInstance(Type interfaceType, object instance, ITransportChannel associatedChannel = null)
-        {
-            if(!_clientRepository && associatedChannel == null) throw new ArgumentNullException(nameof(associatedChannel));
-            lock (_rpcObjects)
-            {
-                Purge();
-                var existing = _rpcObjects.OfType<RpcObjectHandle>().FirstOrDefault(o =>
-                {
-                    if (o.Object.TryGetTarget(out var obj))
-                    {
-                        if (instance is Delegate && obj is Delegate)
-                        {
-                            // special handling for delegates
-                            return obj.Equals(instance);
-                        }
-
-                        return ReferenceEquals(obj, instance);
-                    }
-                    return false;
-                });
-                if (existing == null)
-                {
-                    var v = new RpcObjectHandle(instance, /*!_clientRepository*/true); // always pin on server side as we never know when the client needs us again
-                    v.AssociatedChannel = associatedChannel;
-                    _rpcObjects.Add(v);
-                    return v;
-                }
-                return existing;
-            }
-        }
-
-        public object GetInstance(int instanceId)
-        {
-            lock (_rpcObjects)
-            {
-                Purge();
-                if (_rpcObjects.TryGetValue(RpcHandle.ComparisonHandle(instanceId), out var obj))
-                {
-                    if (obj is RpcObjectHandle objectHandle)
-                    {
-                        if (objectHandle.Object.TryGetTarget(out var instance))
-                        {
-                            return instance;
-                        }
-                    }
-                    else
-                    {
-                        return GetInstance(CreateObjectHandleFromTypeHandle((RpcObjectTypeHandle) obj).InstanceId);
-                    }
-                }
-            }
-            return null;
-        }
-
-        public void RemoveInstance(int instanceId)
-        {
-            lock(_rpcObjects)
-            {
-                Purge();
-                var ch = RpcHandle.ComparisonHandle(instanceId);
-                var toRemove = _rpcObjects.FirstOrDefault(o => !o.IsSingleton /*(_clientRepository || !o.IsPinned)*/ && o.Equals(ch));
-                if (toRemove != null)
-                {
-                    _rpcObjects.Remove(toRemove);
-                }
-            }
-        }
-
-        public void RemoveAllForChannel(ITransportChannel channel)
-        {
-            lock (_rpcObjects)
-            {
-                foreach (var obj in _rpcObjects.OfType<RpcObjectHandle>().Where(o => o.AssociatedChannel == channel).ToArray())
-                {
-                    _rpcObjects.Remove(obj);
-                }
-            }
-        }
-
-        public object GetProxyObject(IRpcChannel channel, Type[] interfaceTypes, int remoteInstanceId)
+        public override object GetProxyObject(IRpcChannel channel, Type[] interfaceTypes, int remoteInstanceId)
         {
             lock (_rpcObjects)
             {
@@ -255,12 +68,18 @@ namespace AdvancedRpcLib
             }
         }
 
-        public T GetProxyObject<T>(IRpcChannel channel, int remoteInstanceId)
+
+        protected override bool IsDelegateAssociatedWithChannel(Delegate d, ITransportChannel channel)
         {
-            return (T) GetProxyObject(
-                channel,
-                new[] {typeof(T)}.Concat(typeof(T).GetInterfaces()).ToArray(),
-                remoteInstanceId);
+            var invokerField = d.Target.GetType().GetField("_invoker", BindingFlags.Instance | BindingFlags.NonPublic);
+            if(invokerField != null)
+            {
+                if (invokerField.GetValue(d.Target) is IRpcChannel rpcChannel)
+                {
+                    return rpcChannel.Channel == channel;
+                }
+            }
+            return false;
         }
 
         private int CreateTypesHash(params Type[] types)
@@ -282,7 +101,7 @@ namespace AdvancedRpcLib
                 var hash = CreateTypesHash(delegateType);
                 if (!_proxyImplementations.TryGetValue(hash, out type))
                 {
-                    var tb = _moduleBuilder.DefineType(delegateType.Name + "Shadow");
+                    var tb = _moduleBuilder.DefineType($"{delegateType.Name}Shadow{Guid.NewGuid():n}"); 
                     var invokerField = CreateConstructor(tb);
                     var (localField, remoteField) = ImplementIRpcObjectProxy(tb);
 
@@ -573,18 +392,5 @@ namespace AdvancedRpcLib
             return mb;
         }
 
-#if DEBUG
-        // make sure we don't hold any references to objects anymore
-        ~RpcObjectRepository()
-        {
-            GC.Collect(2);
-            GC.WaitForPendingFinalizers();
-            Purge();
-            if (_rpcObjects.OfType<RpcObjectHandle>().Any(r => r.AssociatedChannel != null))
-            {
-                throw new Exception("RPC Object count should be 0");
-            }
-        }
-#endif
     }
 }

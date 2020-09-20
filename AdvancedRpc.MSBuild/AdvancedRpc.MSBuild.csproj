@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="$(SolutionDir)Version.props" />
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+   
+    <PackagePath>build</PackagePath>
+    <NuspecFile>AdvancedRpc.MSBuild.nuspec</NuspecFile>
+    
+    <NuspecProperties>version=$(Version);outdir=$([MSBuild]::NormalizeDirectory($(MSBuildProjectDirectory)/bin/$(Configuration)/netstandard2.0))</NuspecProperties>
+    
+  </PropertyGroup>
+
+  
+  <ItemGroup>    
+    <None Include="AdvancedRpc.MSBuild.targets">
+    </None>    
+  </ItemGroup>
+
+  
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Build.Framework" Version="16.6.0" />
+  </ItemGroup>
+
+  <ItemGroup>    
+    <ProjectReference Include="..\AdvancedRpc.Aot.Generator\AdvancedRpc.Aot.Generator.csproj" />
+    <ProjectReference Include="..\AdvancedRpcLib\AdvancedRpcLib.csproj" />
+  </ItemGroup>
+
+</Project>

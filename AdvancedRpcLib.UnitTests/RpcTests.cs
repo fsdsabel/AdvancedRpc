@@ -803,15 +803,52 @@ namespace AdvancedRpcLib.UnitTests
             
         }
 
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
+        public async Task ClientDownRemovesEventHandler(ChannelType type)
+        {
+            var o = new TestObject();            
+            var rpc = await Init<ITestObject>(o, type);
+
+            bool called = false;
+            rpc.TestEvent += (s, e) =>
+              {
+                  called = true;
+              };
+
+            _clientChannel.Dispose();
+
+            await Task.Delay(100); // removing the events is an async operation
+
+            o.InvokeTestEvent();
+            Assert.IsFalse(called);
+        }
+
+        [DataTestMethod]
+        [DataRow(ChannelType.NamedPipe)]
+        [DataRow(ChannelType.Tcp)]
+        public async Task AddingEquivalentEventHandlersWork(ChannelType type)
+        {
+            var o = new TestObject();
+            var rpc = await Init<ITestObject>(o, type);
+            rpc.TestEvent += (s, e) => { };
+            rpc.TestEvent2 += (s, e) => { };
+        }
+
         [Serializable]
         public class CustomEventArgs : EventArgs
         {
             public string Data { get; set; }
         }
 
+        [Serializable]
+        public class Event2Args : EventArgs { }
+
         public interface ITestObject
         {
             event EventHandler<CustomEventArgs> TestEvent;
+            event EventHandler<Event2Args> TestEvent2;
 
             bool WasCalled { get; set; }
 
@@ -873,6 +910,7 @@ namespace AdvancedRpcLib.UnitTests
             public string Property { get; set; } = "Test";
 
             public event EventHandler<CustomEventArgs> TestEvent; // TODO: CustomEventArgs
+            public event EventHandler<Event2Args> TestEvent2; 
 
             public void CallMe()
             {

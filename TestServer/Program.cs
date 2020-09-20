@@ -52,6 +52,8 @@ namespace TestServer
 
     class TestObject : ITestObject, IRpcServerContextObject
     {
+        public event EventHandler<EventArgs> Loaded;
+
         public int Calculate(int a, int b)
         {
             return a + b;
@@ -60,6 +62,11 @@ namespace TestServer
         public string SimpleCall()
         {
             return "42";
+        }
+
+        public void Run()
+        {
+            Loaded?.Invoke(this, EventArgs.Empty);
         }
 
         public string Username
@@ -72,6 +79,10 @@ namespace TestServer
                 return result.Name;
             }
 
+            set
+            {
+
+            }
         }
 
         public ITransportChannel RpcChannel { get; set; }

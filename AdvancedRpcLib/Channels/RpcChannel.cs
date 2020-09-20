@@ -37,6 +37,8 @@ namespace AdvancedRpcLib.Channels
                 _channel = channel;
             }
 
+            public ITransportChannel Channel => _channel;
+
             public object CallRpcMethod(int instanceId, string methodName, Type[] argTypes, object[] args, Type resultType)
             {
                 return _rpcChannel.CallRpcMethod(_channel, instanceId, methodName, argTypes, args, resultType);

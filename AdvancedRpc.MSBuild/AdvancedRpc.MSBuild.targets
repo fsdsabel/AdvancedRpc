@@ -1,0 +1,22 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <UsingTask TaskName="AdvancedRpcAot" AssemblyFile="$(MSBuildThisFileDirectory)../tools/AdvancedRpc.MSBuild.dll" />
+
+  <PropertyGroup>
+    <CoreCompileDependsOn>AdvancedRpcAotCreateProxies;$(CoreCompileDependsOn)</CoreCompileDependsOn>
+  </PropertyGroup>
+
+  <Target Name="AdvancedRpcAotCreateProxies" DependsOnTargets="_AdvancedRpcAotCreateProxies">
+  </Target>
+
+  <Target Name="_AdvancedRpcAotCreateProxies"
+          Inputs="$(MSBuildProjectFile)**\*.cs"
+          Outputs="$(IntermediateOutputPath)AdvancedRpcAot.g.cs">
+    <AdvancedRpcAot OutFilename="$(IntermediateOutputPath)AdvancedRpcAot.g.cs"
+                    InputFiles="$(MSBuildProjectFile)" />
+    <ItemGroup>
+      <Generated Include="$(IntermediateOutputPath)AdvancedRpcAot.g.cs" />
+      <Compile Include="@(Generated)" />
+      <FileWrites Include="@(Generated)" />
+    </ItemGroup>
+  </Target>
+</Project>

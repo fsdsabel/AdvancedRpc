@@ -1,0 +1,31 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2012/06/nuspec.xsd">
+  <metadata>
+    <id>AdvancedRpc.MSBuild</id>
+    <version>$version$</version>
+    <description>
+      AdvancedRPC is a remote procedure call library for .NET. It differs from common solutions like REST, GRPC or WebSockets in that it supports an object hierarchy similar to .NET Remoting. I wrote the library mainly as a replacement for .NET Remoting to make our corporate application ready for .NET Core. It relies heavily on the ability to make remote procedure calls on objects.
+
+      This package builds client proxy classes from interfaces. It is needed for platforms like Unity, where dynamic code generation is not available.
+    </description>
+    <authors>Daniel Sabel</authors>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <license type="file">LICENSE</license>
+    <licenseUrl>https://aka.ms/deprecateLicenseUrl</licenseUrl>
+    <copyright>Daniel Sabel</copyright>
+    <repository url="https://github.com/fsdsabel/AdvancedRpc" />
+    <developmentDependency>true</developmentDependency>
+    <projectUrl>https://github.com/fsdsabel/AdvancedRpc</projectUrl>
+    <dependencies>
+      <group targetFramework=".NETStandard2.0">
+      </group>
+    </dependencies>
+  </metadata>
+  <files>
+    <file src="_._" target="lib/netstandard2.0/" />
+    <file src="../LICENSE" target="LICENSE" />
+    <file src="AdvancedRpc.MSBuild.targets" target="build/" />
+    <file src="$outdir$*.exe" target="tools/" />
+    <file src="$outdir$*.dll" target="tools/" />
+  </files>  
+</package>

@@ -11,13 +11,13 @@ AdvancedRPC is a remote procedure call library for .NET. It differs from common 
 - No need for serialization annotations, just publish an interface
 - Support for multiple clients with notification on connection and disconnection
 - .NET 4.8, .NET Standard 2.0 and .NET Standard 2.1
+- Communication between .NET Framework, .NET Core and Unity apps (not tested on Xamarin yet, but should work there too)
 - **Very easy to setup:** No need to start a web service or define proto files. Just define an interface that is shared between applications and you are ready.
 
 ## Example
 
 **Common interface definition**
 ```csharp
-
 public interface IRpcServer 
 {
     IRpcObject CreateObject(string name);
@@ -35,7 +35,6 @@ public interface IRpcObject
 
 **Server implementation**
 ```csharp
-
 class RpcServer : IRpcServer 
 {
     IRpcObject CreateObject(string name)
@@ -75,13 +74,11 @@ class Program
         Console.ReadKey();
     }
 }
-
 ```
 
 **Client implementation**
 
 ```csharp
-
 class Program
 {
     static async Task Main(string[] args)
@@ -102,17 +99,56 @@ class Program
         Console.ReadKey();
     }
 }
-
 ```
 
 See unit tests for more advanced scenarios.
+
+## Ahead of time code generation
+
+For platforms that do not support dynamic code generation (i.e. Unity, Xamarin iOS) it is necessary to generate the proxy code in advance. AdvancedRpcLib supports this by annotating RPC interface definitions with the `AotRpcObjectAttribute` and using the package `AdvancedRpc.MSBuild`. The package will then generate the proxy files and the class `AotRpcObjects` during build.
+
+> The generation of proxy objects is only supported for RPC clients. It might work in some scenarios for servers as well though, if you do not need events or delegates.
+
+To use the generated proxies, use `AotRpcObjectRepository` instead of the default `RpcObjectRepository`. An examle would look like this:
+
+```csharp
+[AdvancedRpcLib.AotRpcObject]
+public interface IRpcServer 
+{
+    void DoSometing();
+}
+
+class Main 
+{
+    static async Task Main() 
+    {
+        IPAddress ip = ...
+        int port = ...
+
+        var rpcClientChannel = new TcpRpcClientChannel(
+                        new BinaryRpcSerializer(),
+                        new RpcMessageFactory(),
+                        ip,
+                        port,
+                        new AotRpcObjectRepository(true, AotRpcObjects.GetImplementationTypes()),
+                        () => new AotRpcObjectRepository(false, AotRpcObjects.GetImplementationTypes()));
+        
+        await rpcClientChannel.ConnectAsync();
+        var rpcServer = await rpcClientChannel.GetServerObjectAsync<IRpcServer>();
+
+        // rpcServer will be the pregenerated proxy type
+        // from here everything is like normal...                        
+    }
+}
+```
+
 
 ## Some Notes
 
 - If you return a plain static object that doesn't need to know about server changes, use the `Serializable` attribute on the implementation. In that case the object will be serialized and copied to the client or server without creating a proxy object. This can be more efficient for data objects if you have a lot of properties and deep hierarchies. This behaves like a REST call.
 - Do not return or pass IEnumerable, as this will result in a remote call for every `MoveNext` when iterating over it. Instead, use an array in those cases.
 - Watch out for memory leaks. AdvancedRPC handles a lot of scenarios for you but take care to remove your event listeners.
-- **CAREFUL!**  Every remote call can throw an exception if the server goes down.
+- **CAREFUL!**  Every remote call can throw an exception if the server goes down. The same is true for events, if the clients disconnects.
 - If you transfer large objects and use .NET Framework 4.7.2 or 4.8 please add an AppCompat switch in your App.config to improve performance
 
 ```xml

@@ -20,6 +20,8 @@ namespace AdvancedRpcLib
         object CallRpcMethod(int instanceId, string methodName, Type[] argTypes, object[] args, Type resultType);
 
         void RemoveInstance(int localInstanceId, int remoteInstanceId);
+
+        ITransportChannel Channel { get; }
     }
 
     public interface IRpcServerChannel : IDisposable

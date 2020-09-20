@@ -1,0 +1,26 @@
+﻿using System;
+using AdvancedRpcLib;
+
+namespace AdvancedRpcLib.Generated 
+{
+	public static class AotRpcObjects
+    {
+        /// <summary>
+        /// Returns the implementation types for the <see cref="AotRpcObjectRepository"/> constructor.
+        /// </summary>
+        public static System.Collections.Generic.Dictionary<int, Type> GetImplementationTypes()
+        {
+            return new System.Collections.Generic.Dictionary<int, Type>
+            {
+{% for interface in interfaces %}
+                {
+                    AotRpcObjectRepository.CreateTypesHash({{ interface.all_implemented_interfaces }}),
+                    typeof({{ interface.namespace }}.Generated.{{ interface.proxy_name }})
+                }
+{% endfor %}
+            };
+        }
+    }
+}
+
+{{ content }}

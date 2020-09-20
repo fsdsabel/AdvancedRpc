@@ -1,0 +1,86 @@
+﻿namespace {{ interface.namespace }}.Generated
+{
+    [System.CodeDom.Compiler.GeneratedCode("AdvancedRpc.Aot.Generator", "1.0")]    
+    [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
+    public class {{ interface.proxy_name }} : AdvancedRpcLib.IRpcObjectProxy, {{ interface.implemented_interface }}
+    {
+        private readonly IRpcChannel _rpcChannel;
+        private readonly int _localInstanceId;
+        private readonly int _remoteInstanceId;
+
+        private {{ interface.proxy_name }}(IRpcChannel rpcChannel, int localInstanceId, int remoteInstanceId) 
+        {
+            _rpcChannel = rpcChannel;
+            _localInstanceId = localInstanceId;
+            _remoteInstanceId = remoteInstanceId;
+        }
+
+        int AdvancedRpcLib.IRpcObjectProxy.LocalInstanceId => _localInstanceId;
+        int AdvancedRpcLib.IRpcObjectProxy.RemoteInstanceId => _remoteInstanceId;
+
+{% for event in interface.events -%}
+        public event {{ event.type }} {{ event.name }}
+        {
+            add 
+            {
+                 _rpcChannel.CallRpcMethod(_remoteInstanceId, "{{ event.add_name }}",
+                    new Type[] { typeof({{ event.type }}) }, new object[] { value }, typeof(void)); 
+            }
+            remove
+            {
+                _rpcChannel.CallRpcMethod(_remoteInstanceId, "{{ event.remove_name }}",
+                    new Type[] { typeof({{ event.type }}) }, new object[] { value }, typeof(void)); 
+            }
+        }
+{% endfor -%}
+
+{% for property in interface.properties -%}
+        public {{ property.return_type }} {{ property.name }}
+        {
+{% if property.has_getter -%}
+            get 
+            {
+                return ({{ property.return_type }})_rpcChannel.CallRpcMethod(_remoteInstanceId, "{{ property.getter_name }}",
+                    new Type[0], new object[0], typeof({{ property.return_type }}));        
+            }
+{% endif -%}
+{% if property.has_setter -%}
+            set 
+            {
+                _rpcChannel.CallRpcMethod(_remoteInstanceId, "{{ property.setter_name }}",
+                    new Type[] { typeof({{ property.return_type }}) }, new object[] { value }, typeof(void));        
+            }
+{% endif -%}
+        }
+{% endfor -%}
+
+{% for method in interface.methods -%}
+        public {{ method.return_type }} {{ method.name }}({{ method.parameters | join:', ' }})
+        {            
+{% if method.return_type != 'void' -%}
+            return ({{ method.return_type }})_rpcChannel.CallRpcMethod(_remoteInstanceId, "{{ method.name }}",
+{% else -%}
+            _rpcChannel.CallRpcMethod(_remoteInstanceId, "{{ method.name }}",
+{% endif -%}
+                    new Type[]
+                    {
+{% for parameter in method.parameters -%}
+                        typeof({{ parameter.type }}),
+{% endfor -%}
+                    },
+                    new object[]
+                    {
+{% for parameter in method.parameters -%}
+                        {{ parameter.name }},
+{% endfor -%}
+                    },
+                    typeof({{ method.return_type }}));
+        }
+{% endfor -%}
+
+        ~{{ interface.proxy_name }}() 
+        {
+            _rpcChannel.RemoveInstance(_localInstanceId, _remoteInstanceId);
+        }
+    }
+}
