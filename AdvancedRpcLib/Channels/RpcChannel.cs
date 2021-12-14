@@ -252,7 +252,6 @@ namespace AdvancedRpcLib.Channels
             return new RpcChannelWrapper(this, channel);
         }
 
-        [Conditional("DEBUG")]
         private void LogTrace(string message)
         {
             _logger?.LogTrace(message);
@@ -346,7 +345,7 @@ namespace AdvancedRpcLib.Channels
                         }
                     }
 
-                    LogTrace("Serialising response.");
+                    LogTrace("Serializing response.");
                     byte[] response;
                     try
                     {
