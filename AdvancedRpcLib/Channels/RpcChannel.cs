@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using AdvancedRpcLib.Helpers;
 using Microsoft.Extensions.Logging;
 using Nito.AsyncEx;
+using Exception = System.Exception;
 
 namespace AdvancedRpcLib.Channels
 {
@@ -39,13 +40,36 @@ namespace AdvancedRpcLib.Channels
 
             public ITransportChannel Channel => _channel;
 
+            private static object _lock = new object();
+            private void Log(string msg)
+            {
+                //lock (_lock)
+                {
+                   // Debug.WriteLine($"{DateTime.Now:hh:mm:ss.fff} - {msg}");
+                }
+            }
+
             public object CallRpcMethod(int instanceId, string methodName, Type[] argTypes, object[] args, Type resultType)
             {
-                return _rpcChannel.CallRpcMethod(_channel, instanceId, methodName, argTypes, args, resultType);
+                try
+                {
+                    Log($"enter {methodName} ({instanceId})");
+                    return _rpcChannel.CallRpcMethod(_channel, instanceId, methodName, argTypes, args, resultType);
+                }
+                catch (Exception ex)
+                {
+                    Log("EXCEPTION: "+ex.ToString());
+                    throw;
+                }
+                finally
+                {
+                    Log($"exit {methodName} ({instanceId})");
+                }
             }
 
             public void RemoveInstance(int localInstanceId, int remoteInstanceId)
             {
+                Log($"remove local:{localInstanceId} remote:{remoteInstanceId}");
                 _rpcChannel.RemoveInstance(_channel, localInstanceId, remoteInstanceId);
             }
         }
@@ -305,7 +329,7 @@ namespace AdvancedRpcLib.Channels
                         var rpcChannel = GetRpcChannelForClient(channel);
                         for (int i = 0; i < m.Arguments.Length; i++)
                         {
-                            args[i] = MessageFactory.DecodeRpcArgument(rpcChannel, LocalRepository, remoteRepository,
+                            args[i] = MessageFactory.DecodeRpcArgument(rpcChannel, remoteRepository, LocalRepository,
                                 Serializer, m.Arguments[i], targetParameterTypes[i]);
                         }
 

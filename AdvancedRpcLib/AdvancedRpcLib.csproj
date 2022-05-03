@@ -11,11 +11,15 @@
     <Product />
     <Copyright>Daniel Sabel</Copyright>
     <Description>AdvancedRPC is a remote procedure call library for .NET. It differs from common solutions like REST, GRPC or WebSockets in that it supports an object hierarchy similar to .NET Remoting. I wrote the library mainly as a replacement for .NET Remoting to make our corporate application ready for .NET Core. It relies heavily on the ability to make remote procedure calls on objects.</Description>
-    <PackageReleaseNotes>1.0.4 Ahead of Time compilation of client proxy classes to support Unity
-1.0.3 Fixed Named Pipe Channel for .NET Standard and x86 targets (AccessViolationException)
-1.0.2 Performance optimizations for large argument object graphs
-1.0.1 Fixed Serializable objects
-1.0.0 Initial release</PackageReleaseNotes>
+    <PackageReleaseNotes>
+      1.0.6 Bug fixes
+      1.0.5 Bug fixes
+      1.0.4 Ahead of Time compilation of client proxy classes to support Unity
+      1.0.3 Fixed Named Pipe Channel for .NET Standard and x86 targets (AccessViolationException)
+      1.0.2 Performance optimizations for large argument object graphs
+      1.0.1 Fixed Serializable objects
+      1.0.0 Initial release
+    </PackageReleaseNotes>
     <RepositoryUrl>https://github.com/fsdsabel/AdvancedRpc</RepositoryUrl>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <PackageProjectUrl>https://github.com/fsdsabel/AdvancedRpc</PackageProjectUrl>    
