@@ -121,7 +121,7 @@ namespace AdvancedRpcLib
 
         RpcObjectHandle AddInstance(Type interfaceType, object instance, ITransportChannel associatedChannel = null);
 
-        void RemoveInstance(int instanceId);
+        void RemoveInstance(int instanceId, TimeSpan delay);
 
         void RemoveAllForChannel(ITransportChannel channel);
 

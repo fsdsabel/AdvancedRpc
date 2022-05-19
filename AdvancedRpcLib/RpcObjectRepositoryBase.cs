@@ -1,9 +1,11 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using AdvancedRpcLib.Channels;
 using AdvancedRpcLib.Helpers;
+using Microsoft.Extensions.Logging;
 
 namespace AdvancedRpcLib
 {
@@ -11,6 +13,7 @@ namespace AdvancedRpcLib
     {
         private readonly bool _clientRepository;
         protected readonly HashSet<RpcHandle> _rpcObjects = new HashSet<RpcHandle>();
+        private readonly ConcurrentDictionary<int, DateTime> _instancesToRemoveDelayed = new ConcurrentDictionary<int, DateTime>();
         
         protected RpcObjectRepositoryBase(bool clientRepository)
         {
@@ -56,6 +59,17 @@ namespace AdvancedRpcLib
             {
                 lock (_rpcObjects)
                 {
+                    foreach(var instanceToRemoveDelayed in _instancesToRemoveDelayed.ToArray())
+                    {
+                        if(instanceToRemoveDelayed.Value <= DateTime.Now)
+                        {
+                            if (_instancesToRemoveDelayed.TryRemove(instanceToRemoveDelayed.Key, out _))
+                            {
+                                RemoveInstance(instanceToRemoveDelayed.Key, TimeSpan.Zero, false);
+                            }                            
+                        }
+                    }
+
                     foreach (var o in _rpcObjects.OfType<RpcObjectHandle>().ToArray())
                     {
                         if (!o.Object.TryGetTarget(out var _))
@@ -177,11 +191,24 @@ namespace AdvancedRpcLib
             return null;
         }
 
-        public void RemoveInstance(int instanceId)
+        public void RemoveInstance(int instanceId, TimeSpan delay)
+        {
+            RemoveInstance(instanceId, delay, true);
+        }
+
+        private void RemoveInstance(int instanceId, TimeSpan delay, bool purge)
         {
             lock (_rpcObjects)
             {
-                Purge();
+                if (purge)
+                {
+                    Purge();
+                }
+                if (delay > TimeSpan.Zero)
+                {
+                    _instancesToRemoveDelayed.AddOrUpdate(instanceId, DateTime.Now + delay, (id, date) => DateTime.Now + delay);
+                    return;
+                }
                 var ch = RpcHandle.ComparisonHandle(instanceId);
                 var toRemove = _rpcObjects.FirstOrDefault(o => !o.IsSingleton /*(_clientRepository || !o.IsPinned)*/ && o.Equals(ch));
                 if (toRemove != null)

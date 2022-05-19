@@ -214,7 +214,7 @@ namespace AdvancedRpcLib.Channels
         {
             try
             {
-                GetRemoteRepository(channel).RemoveInstance(localInstanceId);
+                GetRemoteRepository(channel).RemoveInstance(localInstanceId, TimeSpan.Zero);
                 SendMessageAsync<RpcMessage>(channel, () => MessageFactory.CreateRemoveInstanceMessage(remoteInstanceId)).GetAwaiter().GetResult();
             }
             catch
@@ -399,8 +399,10 @@ namespace AdvancedRpcLib.Channels
                 case RpcMessageType.RemoveInstance:
                     {
                         var m = Serializer.DeserializeMessage<RpcRemoveInstanceMessage>(data);
-                        LogTrace($"Removing instance '{m.InstanceId}'");
-                        LocalRepository.RemoveInstance(m.InstanceId);
+                        // sometimes we can get into a race condition with garbage collection and instance method calls
+                        // give some additional time to the object lifetime, so we still have access to the object for some time
+                        LogTrace($"Removing instance '{m.InstanceId}' with delay (60s)");
+                        LocalRepository.RemoveInstance(m.InstanceId, TimeSpan.FromSeconds(60));
 
                         var response = Serializer.SerializeMessage(new RpcMessage
                         {
