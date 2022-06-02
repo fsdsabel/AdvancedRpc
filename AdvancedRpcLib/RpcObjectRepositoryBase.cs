@@ -13,7 +13,7 @@ namespace AdvancedRpcLib
     {
         private readonly bool _clientRepository;
         protected readonly HashSet<RpcHandle> _rpcObjects = new HashSet<RpcHandle>();
-        private readonly ConcurrentDictionary<int, DateTime> _instancesToRemoveDelayed = new ConcurrentDictionary<int, DateTime>();
+        private readonly ConcurrentDictionary<Guid, DateTime> _instancesToRemoveDelayed = new ConcurrentDictionary<Guid, DateTime>();
         
         protected RpcObjectRepositoryBase(bool clientRepository)
         {
@@ -168,7 +168,7 @@ namespace AdvancedRpcLib
             }
         }
 
-        public object GetInstance(int instanceId)
+        public object GetInstance(Guid instanceId)
         {
             lock (_rpcObjects)
             {
@@ -191,12 +191,12 @@ namespace AdvancedRpcLib
             return null;
         }
 
-        public void RemoveInstance(int instanceId, TimeSpan delay)
+        public void RemoveInstance(Guid instanceId, TimeSpan delay)
         {
             RemoveInstance(instanceId, delay, true);
         }
 
-        private void RemoveInstance(int instanceId, TimeSpan delay, bool purge)
+        private void RemoveInstance(Guid instanceId, TimeSpan delay, bool purge)
         {
             lock (_rpcObjects)
             {
@@ -254,7 +254,7 @@ namespace AdvancedRpcLib
 
         protected abstract bool IsDelegateAssociatedWithChannel(Delegate d, ITransportChannel channel);
 
-        public virtual T GetProxyObject<T>(IRpcChannel channel, int remoteInstanceId)
+        public virtual T GetProxyObject<T>(IRpcChannel channel, Guid remoteInstanceId)
         {
             return (T)GetProxyObject(
                 channel,
@@ -262,7 +262,7 @@ namespace AdvancedRpcLib
                 remoteInstanceId);
         }
 
-        public abstract object GetProxyObject(IRpcChannel channel, Type[] interfaceTypes, int remoteInstanceId);
+        public abstract object GetProxyObject(IRpcChannel channel, Type[] interfaceTypes, Guid remoteInstanceId);
 
 
 #if DEBUG

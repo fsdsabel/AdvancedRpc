@@ -17,9 +17,9 @@ namespace AdvancedRpcLib
 
     public interface IRpcChannel
     {
-        object CallRpcMethod(int instanceId, string methodName, Type[] argTypes, object[] args, Type resultType);
+        object CallRpcMethod(Guid instanceId, string methodName, Type[] argTypes, object[] args, Type resultType);
 
-        void RemoveInstance(int localInstanceId, int remoteInstanceId);
+        void RemoveInstance(Guid localInstanceId, Guid remoteInstanceId);
 
         ITransportChannel Channel { get; }
     }
@@ -78,13 +78,13 @@ namespace AdvancedRpcLib
         RpcGetServerObjectMessage CreateGetServerObjectMessage(string typeId);
 
         RpcMethodCallMessage CreateMethodCallMessage(ITransportChannel channel, IRpcObjectRepository localRepository,
-            int instanceId, string methodName, Type[] argumentTypes, object[] arguments);
+            Guid instanceId, string methodName, Type[] argumentTypes, object[] arguments);
 
         RpcCallResultMessage CreateCallResultMessage(ITransportChannel channel, IRpcObjectRepository localRepository,
             RpcMethodCallMessage call, MethodInfo calledMethod, object result);
 
         RpcCallResultMessage CreateExceptionResultMessage(RpcMessage call, Exception exception);
-        RpcRemoveInstanceMessage CreateRemoveInstanceMessage(int instanceId);
+        RpcRemoveInstanceMessage CreateRemoveInstanceMessage(Guid instanceId);
 
         object DecodeRpcCallResultMessage(IRpcChannel channel, IRpcObjectRepository localRepository, IRpcObjectRepository remoteRepository,
             IRpcSerializer serializer, RpcCallResultMessage message, Type resultType);
@@ -95,8 +95,8 @@ namespace AdvancedRpcLib
 
     public interface IRpcObjectProxy
     {
-        int LocalInstanceId { get; }
-        int RemoteInstanceId { get; }
+        Guid LocalInstanceId { get; }
+        Guid RemoteInstanceId { get; }
     }
 
     public interface IRpcObjectRepository
@@ -113,15 +113,15 @@ namespace AdvancedRpcLib
 
         RpcObjectHandle GetObject(string typeId);
 
-        T GetProxyObject<T>(IRpcChannel channel, int remoteInstanceId);
+        T GetProxyObject<T>(IRpcChannel channel, Guid remoteInstanceId);
 
-        object GetProxyObject(IRpcChannel channel, Type[] interfaceTypes, int remoteInstanceId);
+        object GetProxyObject(IRpcChannel channel, Type[] interfaceTypes, Guid remoteInstanceId);
 
-        object GetInstance(int instanceId);
+        object GetInstance(Guid instanceId);
 
         RpcObjectHandle AddInstance(Type interfaceType, object instance, ITransportChannel associatedChannel = null);
 
-        void RemoveInstance(int instanceId, TimeSpan delay);
+        void RemoveInstance(Guid instanceId, TimeSpan delay);
 
         void RemoveAllForChannel(ITransportChannel channel);
 

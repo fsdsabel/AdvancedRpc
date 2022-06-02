@@ -49,7 +49,7 @@ namespace AdvancedRpcLib.Channels
                 }
             }
 
-            public object CallRpcMethod(int instanceId, string methodName, Type[] argTypes, object[] args, Type resultType)
+            public object CallRpcMethod(Guid instanceId, string methodName, Type[] argTypes, object[] args, Type resultType)
             {
                 try
                 {
@@ -67,7 +67,7 @@ namespace AdvancedRpcLib.Channels
                 }
             }
 
-            public void RemoveInstance(int localInstanceId, int remoteInstanceId)
+            public void RemoveInstance(Guid localInstanceId, Guid remoteInstanceId)
             {
                 Log($"remove local:{localInstanceId} remote:{remoteInstanceId}");
                 _rpcChannel.RemoveInstance(_channel, localInstanceId, remoteInstanceId);
@@ -179,7 +179,7 @@ namespace AdvancedRpcLib.Channels
         }
 
         protected object CallRpcMethod(TChannel channel,
-            int instanceId, string methodName, Type[] argTypes, object[] args, Type resultType)
+            Guid instanceId, string methodName, Type[] argTypes, object[] args, Type resultType)
         {
             RpcCallResultMessage response;
             try
@@ -210,7 +210,7 @@ namespace AdvancedRpcLib.Channels
             }
         }
 
-        public void RemoveInstance(TChannel channel, int localInstanceId, int remoteInstanceId)
+        public void RemoveInstance(TChannel channel, Guid localInstanceId, Guid remoteInstanceId)
         {
             try
             {

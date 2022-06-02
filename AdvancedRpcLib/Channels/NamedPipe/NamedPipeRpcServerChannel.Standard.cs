@@ -9,7 +9,7 @@ using Microsoft.Win32.SafeHandles;
 
 namespace AdvancedRpcLib.Channels.NamedPipe
 {
-#if NETSTANDARD
+#if !NETFRAMEWORK
     partial class NamedPipeRpcServerChannel 
     {
         [StructLayout(LayoutKind.Sequential)]

@@ -1,11 +1,15 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO.Pipes;
+using System.Linq;
 using System.Net;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
+using System.Threading;
 using System.Threading.Tasks;
 using AdvancedRpcLib.Channels;
 using AdvancedRpcLib.Channels.NamedPipe;
@@ -18,6 +22,44 @@ using Microsoft.Win32.SafeHandles;
 
 namespace AdvancedRpcLib.UnitTests
 {
+    class Test
+    {
+        private IRpcChannel rpcChannel;
+        public void Run()
+        {
+
+            GC.KeepAlive(this);
+        }
+
+        ~Test()
+        {
+            rpcChannel.RemoveInstance(Guid.NewGuid(), Guid.NewGuid());
+        }
+    }
+
+    class TestChannel : IRpcChannel
+    {
+        public static List<Guid> ActiveIds = new List<Guid>();
+
+        public object CallRpcMethod(Guid instanceId, string methodName, Type[] argTypes, object[] args, Type resultType)
+        {
+            Thread.Sleep(20);
+            if (resultType.IsClass) return null;
+            return 0;
+        }
+
+        public void RemoveInstance(Guid localInstanceId, Guid remoteInstanceId)
+        {
+            Debug.WriteLine($"~{remoteInstanceId}");
+            if (ActiveIds.Contains(remoteInstanceId))
+            {
+                Debugger.Break();
+            }
+        }
+
+        public ITransportChannel Channel { get; set; }
+    }
+
     [TestClass]
     public partial class RpcTests
     {
@@ -357,9 +399,9 @@ namespace AdvancedRpcLib.UnitTests
                 // try to call back
                 Assert.AreEqual("data", proxy.Reflect("data"));
             };
-
+            
             o.InvokeTestEvent();
-
+            
             Assert.IsTrue(eventHandlerCalled);
         }
 
@@ -446,9 +488,9 @@ namespace AdvancedRpcLib.UnitTests
             GC.WaitForPendingFinalizers();
 
             var localRepo = _clientChannel.GetPrivate<IRpcObjectRepository>("LocalRepository");
-            var rpcObjects = localRepo.GetPrivate<HashSet<RpcHandle>>("_rpcObjects");
+            var rpcObjectsToBeRemoved = localRepo.GetPrivate<ConcurrentDictionary<Guid, DateTime>>("_instancesToRemoveDelayed");
 
-            Assert.AreEqual(0, rpcObjects.Count); // the event handler should be removed
+            Assert.AreEqual(1, rpcObjectsToBeRemoved.Count); // the event handler should be removed
         }
 
 
@@ -761,7 +803,7 @@ namespace AdvancedRpcLib.UnitTests
             Assert.AreSame(testObj, verified);
             Assert.AreSame(testObj, testObj2);
         }
-
+       
         [DataTestMethod]
         [DataRow(ChannelType.NamedPipe)]
         [DataRow(ChannelType.Tcp)]
@@ -884,16 +926,24 @@ namespace AdvancedRpcLib.UnitTests
         public interface ISubObject
         {
             string Name { get; }
+            string Name2 { get; }
+
+            ISubObject SubSubObject { get; }
         }
 
         class SubObject : ISubObject
         {
+            private ISubObject _subObject;
             public string Name { get; set; }
+            public string Name2 { get; set; }
+            public ISubObject SubSubObject => _subObject ?? (_subObject = new SubObject());
         }
 
         public interface ITestObject2 : ITestObject
         {
             string CallMe2();
+
+            ISubObject[] SomeObject();
         }
 
         internal interface IInternalInterface
@@ -903,6 +953,11 @@ namespace AdvancedRpcLib.UnitTests
 
         class TestObject : ITestObject2, IInternalInterface
         {
+            ~TestObject()
+            {
+                Debug.WriteLine($"~{GetHashCode()}");
+            }
+
             private Action<int> _callback;
             public bool WasCalled { get; set; }
 
@@ -951,6 +1006,12 @@ namespace AdvancedRpcLib.UnitTests
             {
                 return "callme2";
             }
+
+            ISubObject[] _data = new[] { new SubObject(), new SubObject() };
+            public ISubObject[] SomeObject()
+            {
+                return _data;
+            } 
 
             public ISubObject SetNameFromSubObject(ISubObject obj)
             {
@@ -1044,6 +1105,8 @@ namespace AdvancedRpcLib.UnitTests
         class SerializableSubObject : ISubObject
         {
             public string Name { get; set; }
+            public string Name2 { get; set; }
+            public ISubObject SubSubObject { get; set; }
         }
 
         public interface IOverload
@@ -1099,6 +1162,9 @@ namespace AdvancedRpcLib.UnitTests
         class MultipleIntf : ISubObject, IRoundTrip
         {
             public string Name { get; }
+            public string Name2 { get; set; }
+            public ISubObject SubSubObject { get; set; }
+
             public ISubObject GetObject()
             {
                 throw new NotImplementedException();

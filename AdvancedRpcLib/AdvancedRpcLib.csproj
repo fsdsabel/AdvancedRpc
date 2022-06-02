@@ -2,7 +2,7 @@
   <Import Project="$(SolutionDir)Version.props" />
 
   <PropertyGroup>
-    <TargetFrameworks>net48;netstandard2.0;netstandard2.1</TargetFrameworks>
+    <TargetFrameworks>net48;netstandard2.0;netstandard2.1;net60</TargetFrameworks>
     <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>AdvancedRpcLib.snk</AssemblyOriginatorKeyFile>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
@@ -12,6 +12,8 @@
     <Copyright>Daniel Sabel</Copyright>
     <Description>AdvancedRPC is a remote procedure call library for .NET. It differs from common solutions like REST, GRPC or WebSockets in that it supports an object hierarchy similar to .NET Remoting. I wrote the library mainly as a replacement for .NET Remoting to make our corporate application ready for .NET Core. It relies heavily on the ability to make remote procedure calls on objects.</Description>
     <PackageReleaseNotes>
+      1.0.8 Using Guid instead of int for instance ids to eliminate an inter process race condition
+      1.0.7 Bug fixes
       1.0.6 Bug fixes
       1.0.5 Bug fixes
       1.0.4 Ahead of Time compilation of client proxy classes to support Unity

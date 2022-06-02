@@ -39,7 +39,7 @@ namespace AdvancedRpcLib
         {
         }
 
-        public override object GetProxyObject(IRpcChannel channel, Type[] interfaceTypes, int remoteInstanceId)
+        public override object GetProxyObject(IRpcChannel channel, Type[] interfaceTypes, Guid remoteInstanceId)
         {
             lock (_rpcObjects)
             {
@@ -93,7 +93,7 @@ namespace AdvancedRpcLib
             return hash.ToHashCode();
         }
 
-        private object ImplementDelegate(Type delegateType, IRpcChannel channel, int remoteInstanceId, int localInstanceId)
+        private object ImplementDelegate(Type delegateType, IRpcChannel channel, Guid remoteInstanceId, Guid localInstanceId)
         {
             RpcTypeDefinition type;
             lock (_proxyImplementations)
@@ -167,7 +167,7 @@ namespace AdvancedRpcLib
         }
 
 
-        private object ImplementInterfaces(Type[] interfaceTypes, IRpcChannel channel, int remoteInstanceId, int localInstanceId)
+        private object ImplementInterfaces(Type[] interfaceTypes, IRpcChannel channel, Guid remoteInstanceId, Guid localInstanceId)
         {
             if (!AllowNonPublicInterfaceAccess) 
             {
@@ -284,19 +284,19 @@ namespace AdvancedRpcLib
             FieldBuilder DefineProp(string propName)
             {
                 var id = Guid.NewGuid();
-                var field = tb.DefineField($"_instanceId{id:N}", typeof(int), FieldAttributes.Private);
+                var field = tb.DefineField($"_instanceId{id:N}", typeof(Guid), FieldAttributes.Private);
                 
 
 
                 var pb = tb.DefineProperty(propName,
-                    PropertyAttributes.None, typeof(int), Type.EmptyTypes);
+                    PropertyAttributes.None, typeof(Guid), Type.EmptyTypes);
 
                 var mb = tb.DefineMethod($"get_InstanceId{id:N}",
                     MethodAttributes.Private |
                     MethodAttributes.HideBySig |
                     MethodAttributes.NewSlot |
                     MethodAttributes.Virtual |
-                    MethodAttributes.Final, typeof(int), Type.EmptyTypes);
+                    MethodAttributes.Final, typeof(Guid), Type.EmptyTypes);
                 var il = mb.GetILGenerator();
                 il.Emit(OpCodes.Ldarg_0); // this
                 il.Emit(OpCodes.Ldfld, field);

@@ -1,22 +1,22 @@
 ﻿namespace {{ interface.namespace }}.Generated
 {
-    [System.CodeDom.Compiler.GeneratedCode("AdvancedRpc.Aot.Generator", "1.0")]    
+    [System.CodeDom.Compiler.GeneratedCode("AdvancedRpc.Aot.Generator", "1.1")]    
     [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class {{ interface.proxy_name }} : AdvancedRpcLib.IRpcObjectProxy, {{ interface.implemented_interface }}
     {
         private readonly IRpcChannel _rpcChannel;
-        private readonly int _localInstanceId;
-        private readonly int _remoteInstanceId;
+        private readonly Guid _localInstanceId;
+        private readonly Guid _remoteInstanceId;
 
-        private {{ interface.proxy_name }}(IRpcChannel rpcChannel, int localInstanceId, int remoteInstanceId) 
+        private {{ interface.proxy_name }}(IRpcChannel rpcChannel, Guid localInstanceId, Guid remoteInstanceId) 
         {
             _rpcChannel = rpcChannel;
             _localInstanceId = localInstanceId;
             _remoteInstanceId = remoteInstanceId;
         }
 
-        int AdvancedRpcLib.IRpcObjectProxy.LocalInstanceId => _localInstanceId;
-        int AdvancedRpcLib.IRpcObjectProxy.RemoteInstanceId => _remoteInstanceId;
+        Guid AdvancedRpcLib.IRpcObjectProxy.LocalInstanceId => _localInstanceId;
+        Guid AdvancedRpcLib.IRpcObjectProxy.RemoteInstanceId => _remoteInstanceId;
 
 {% for event in interface.events -%}
         public event {{ event.type }} {{ event.name }}

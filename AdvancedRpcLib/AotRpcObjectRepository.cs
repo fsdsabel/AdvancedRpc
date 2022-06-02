@@ -34,7 +34,7 @@ namespace AdvancedRpcLib
             return hashCode.ToHashCode();
         }
 
-        public override object GetProxyObject(IRpcChannel channel, Type[] interfaceTypes, int remoteInstanceId)
+        public override object GetProxyObject(IRpcChannel channel, Type[] interfaceTypes, Guid remoteInstanceId)
         {
             lock (_rpcObjects)
             {

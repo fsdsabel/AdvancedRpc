@@ -12,31 +12,31 @@ namespace AdvancedRpcLib.UnitTests
         {
 
             var mock = new Mock<IRpcChannel>();
-            var proxy = new RpcObjectRepository(false).GetProxyObject<ISimple1>(mock.Object, 0);
+            var proxy = new RpcObjectRepository(false).GetProxyObject<ISimple1>(mock.Object, Guid.Empty);
             proxy.Test();
-            mock.Verify(c => c.CallRpcMethod(0, "Test", new Type[0], new object[0], typeof(void)));
+            mock.Verify(c => c.CallRpcMethod(Guid.Empty, "Test", new Type[0], new object[0], typeof(void)));
         }
 
         [TestMethod]
         public void GetProxyObject_SimpleType_Succeeds2()
         {
             var mock = new Mock<IRpcChannel>();
-            mock.Setup(p => p.CallRpcMethod(0, "Test2", new Type[] { typeof(int), typeof(string) }, new object[] { 1, "a" }, typeof(int))).Returns(2);
-            var proxy = new RpcObjectRepository(false).GetProxyObject<ISimple2>(mock.Object, 0);
+            mock.Setup(p => p.CallRpcMethod(Guid.Empty, "Test2", new Type[] { typeof(int), typeof(string) }, new object[] { 1, "a" }, typeof(int))).Returns(2);
+            var proxy = new RpcObjectRepository(false).GetProxyObject<ISimple2>(mock.Object, Guid.Empty);
             
 
             proxy.Test();
-            mock.Verify(c => c.CallRpcMethod(0, "Test", new Type[0], new object[0], typeof(void)));
+            mock.Verify(c => c.CallRpcMethod(Guid.Empty, "Test", new Type[0], new object[0], typeof(void)));
 
             proxy.Test2(1, "a");
-            mock.Verify(c => c.CallRpcMethod(0, "Test2", new Type[] { typeof(int), typeof(string) }, new object[] { 1, "a" }, typeof(int)));
+            mock.Verify(c => c.CallRpcMethod(Guid.Empty, "Test2", new Type[] { typeof(int), typeof(string) }, new object[] { 1, "a" }, typeof(int)));
         }
 
         [TestMethod]
         public void GetProxyObject_TypeWithEvent_Succeeds()
         {
             var mock = new Mock<IRpcChannel>();
-            var proxy = new RpcObjectRepository(false).GetProxyObject<ISimpleEvent>(mock.Object, 0);
+            var proxy = new RpcObjectRepository(false).GetProxyObject<ISimpleEvent>(mock.Object, Guid.Empty);
 
             proxy.TestEvent += (s, e) =>
             {
@@ -49,7 +49,7 @@ namespace AdvancedRpcLib.UnitTests
         public void GetProxyObject_TypeWithProperty_CreatesCorrectTypeDefinition()
         {
             var mock = new Mock<IRpcChannel>();
-            var proxy = new RpcObjectRepository(false).GetProxyObject<IProperty>(mock.Object, 0);
+            var proxy = new RpcObjectRepository(false).GetProxyObject<IProperty>(mock.Object, Guid.Empty);
 
             Assert.IsNotNull(proxy.GetType().GetProperty(nameof(IProperty.TestProperty)));
         }

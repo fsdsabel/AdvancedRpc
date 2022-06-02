@@ -51,7 +51,7 @@ namespace AdvancedRpcLib
         }
 
         public RpcMethodCallMessage CreateMethodCallMessage(ITransportChannel channel, IRpcObjectRepository localRepository,
-            int instanceId, string methodName, Type[] argumentTypes, object[] arguments)
+            Guid instanceId, string methodName, Type[] argumentTypes, object[] arguments)
         {
             return new RpcMethodCallMessage
             {
@@ -65,7 +65,7 @@ namespace AdvancedRpcLib
             };
         }
 
-        public RpcRemoveInstanceMessage CreateRemoveInstanceMessage(int instanceId)
+        public RpcRemoveInstanceMessage CreateRemoveInstanceMessage(Guid instanceId)
         {
             return new RpcRemoveInstanceMessage
             {
@@ -99,7 +99,7 @@ namespace AdvancedRpcLib
 
                     return serializer.ChangeType(argument.Value, argumentType);
                 case RpcType.Proxy:
-                    var instanceId = (int) serializer.ChangeType(argument.Value, typeof(int));
+                    var instanceId = (Guid) serializer.ChangeType(argument.Value, typeof(Guid));
                     var instance = localRepository.GetInstance(instanceId);
                     if (instance == null)
                     {

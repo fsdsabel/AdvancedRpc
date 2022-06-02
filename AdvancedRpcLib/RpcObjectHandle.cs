@@ -28,35 +28,31 @@ namespace AdvancedRpcLib
 
     public class RpcHandle
     {
-        private static int _idCounter;
-        private static readonly object IdCounterLock = new object();
+        //private static int _idCounter;
+        //private static readonly object IdCounterLock = new object();
         private object _pin;
 
         
 
         protected RpcHandle() {}
 
-        private RpcHandle(int instanceId)
+        private RpcHandle(Guid instanceId)
         {
             InstanceId = instanceId;
         }
 
         public bool IsPinned => _pin != null;
-        public int InstanceId { get; protected set; }
+        public Guid InstanceId { get; protected set; }
 
         public bool IsSingleton { get; protected set; }
 
-        protected int CreateInstanceId(int? instanceId = null)
+        protected Guid CreateInstanceId(Guid? instanceId = null)
         {
-            lock (IdCounterLock)
+            if(instanceId != null)
             {
-                if (instanceId != null)
-                {
-                    _idCounter = Math.Max(unchecked(_idCounter + 1), instanceId.Value);
-                    return instanceId.Value;
-                }
-                return unchecked(++_idCounter);
+                return instanceId.Value;
             }
+            return Guid.NewGuid();
         }
 
         protected void Pin(object obj)
@@ -68,7 +64,7 @@ namespace AdvancedRpcLib
 
         public override int GetHashCode()
         {
-            return InstanceId;
+            return InstanceId.GetHashCode();
         }
 
         public override bool Equals(object obj)
@@ -80,7 +76,7 @@ namespace AdvancedRpcLib
             return base.Equals(obj);
         }
 
-        public static RpcHandle ComparisonHandle(int instanceId)
+        public static RpcHandle ComparisonHandle(Guid instanceId)
         {
             return new RpcHandle(instanceId);
         }
@@ -91,7 +87,7 @@ namespace AdvancedRpcLib
         private readonly bool _pinned;
 
 
-        public RpcObjectHandle(object obj, bool pinned = false, bool singleton = false, int? instanceId = null)
+        public RpcObjectHandle(object obj, bool pinned = false, bool singleton = false, Guid? instanceId = null)
         {
             _pinned = pinned;
             IsSingleton = singleton;

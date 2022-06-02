@@ -28,7 +28,7 @@ namespace AdvancedRpcLib
     [Serializable]
     public class RpcMethodCallMessage : RpcMessage
     {
-        public int InstanceId { get; set; }
+        public Guid InstanceId { get; set; }
 
         public string MethodName { get; set; }
 
@@ -56,7 +56,7 @@ namespace AdvancedRpcLib
     [Serializable]
     public class RpcRemoveInstanceMessage : RpcMessage
     {
-        public int InstanceId { get; set; }
+        public Guid InstanceId { get; set; }
     }
 
     public enum RpcType
@@ -70,7 +70,7 @@ namespace AdvancedRpcLib
     [Serializable]
     class RpcGetServerObjectResponseMessage : RpcMessage
     {
-        public int InstanceId { get; set; }
+        public Guid InstanceId { get; set; }
 
         public RpcArgument Exception { get; set; }
     }
