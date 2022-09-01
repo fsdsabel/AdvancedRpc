@@ -109,7 +109,7 @@ namespace AdvancedRpcLib.Channels
             }
         }
 
-        protected virtual void Dispose(bool disposing)
+        protected override void Dispose(bool disposing)
         {
             if(disposing)
             {
@@ -122,11 +122,6 @@ namespace AdvancedRpcLib.Channels
                     }
                 }
             }
-        }
-
-        public void Dispose()
-        {
-            Dispose(true);
         }
     }
 }

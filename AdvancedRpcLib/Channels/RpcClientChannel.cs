@@ -63,9 +63,13 @@ namespace AdvancedRpcLib.Channels
             Disconnected?.Invoke(this, e);
         }
 
-        public void Dispose()
+        protected override void Dispose(bool disposing)
         {
-            TransportChannel.Dispose();
+            if (disposing)
+            {
+                TransportChannel.Dispose();
+            }
+            base.Dispose(disposing);
         }
     }
 }

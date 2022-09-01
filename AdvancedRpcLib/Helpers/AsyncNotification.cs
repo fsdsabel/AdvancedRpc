@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Reflection;
+using Microsoft.Extensions.Logging;
 
 namespace AdvancedRpcLib.Helpers
 {
@@ -9,6 +10,12 @@ namespace AdvancedRpcLib.Helpers
         public delegate bool DataReceivedDelegate(byte[] data, RpcMessage message);
 
         private readonly List<Tuple<DataReceivedDelegate, bool>> _callbacks = new List<Tuple<DataReceivedDelegate, bool>>();
+        private readonly ILogger _logger;
+
+        public AsyncNotification(ILogger logger)
+        {
+            _logger = logger;
+        }
 
         public void Register(DataReceivedDelegate callback, bool autoremove)
         {
@@ -49,7 +56,7 @@ namespace AdvancedRpcLib.Helpers
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine("Error in message notification: " + ex);
+                    _logger?.LogError(ex, "Error in message notification");
                     throw;
                 }
             }

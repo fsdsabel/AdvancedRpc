@@ -25,7 +25,7 @@ namespace AdvancedRpcLib.Channels
         Server
     }
 
-    public abstract class RpcChannel<TChannel> where TChannel:ITransportChannel
+    public abstract class RpcChannel<TChannel> : IDisposable where TChannel:ITransportChannel 
     {
         class RpcChannelWrapper : IRpcChannel
         {
@@ -95,7 +95,9 @@ namespace AdvancedRpcLib.Channels
         protected readonly IRpcMessageFactory MessageFactory;
         private readonly RpcChannelType _channelType;
         private readonly ILogger<RpcChannel<TChannel>> _logger;
-        
+        private readonly ILogger<AsyncNotification> _asyncNotificationLogger;
+        private bool _disposedValue;
+
         protected RpcChannel(IRpcSerializer serializer,
            IRpcMessageFactory messageFactory,
            RpcChannelType channelType,
@@ -107,6 +109,7 @@ namespace AdvancedRpcLib.Channels
             _channelType = channelType;
             Serializer = serializer;
             _logger = loggerFactory?.CreateLogger<RpcChannel<TChannel>>();
+            _asyncNotificationLogger = loggerFactory?.CreateLogger<AsyncNotification>();
             _remoteRepository = remoteRepository ?? (() => new RpcObjectRepository(channelType == RpcChannelType.Server));
             LocalRepository = localRepository ?? new RpcObjectRepository(channelType == RpcChannelType.Client);
         }
@@ -265,7 +268,7 @@ namespace AdvancedRpcLib.Channels
             {
                 if (!_messageNotifications.ContainsKey(channel))
                 {
-                    _messageNotifications.Add(channel, new AsyncNotification());
+                    _messageNotifications.Add(channel, new AsyncNotification(_asyncNotificationLogger));
                 }
                 _messageNotifications[channel].Register(callback, autoremove);
             }
@@ -431,10 +434,13 @@ namespace AdvancedRpcLib.Channels
                 {
                     try
                     {
-                        // ReSharper disable once InconsistentlySynchronizedField
-                        if (!_messageNotifications[channel].Notify(data, Serializer))
+                        if (!_disposedValue)
                         {
-                            _logger?.LogError($"Failed to process message.");
+                            // ReSharper disable once InconsistentlySynchronizedField
+                            if (!_messageNotifications[channel].Notify(data, Serializer))
+                            {
+                                _logger?.LogError($"Failed to process message.");
+                            }
                         }
                     }
                     catch (Exception ex)
@@ -451,9 +457,14 @@ namespace AdvancedRpcLib.Channels
                     var stream = channel.GetStream();
                     byte[] lengthBytes = new byte[4];
 
-                    while (true)
+                    while (!_disposedValue)
                     {
                         var type = (RpcChannelMessageType) stream.ReadByte();
+                        if (_disposedValue)
+                        {
+                            // we got disposed while waiting
+                            break;
+                        }
                         switch (type)
                         {
                             case RpcChannelMessageType.LargeMessage:
@@ -528,5 +539,17 @@ namespace AdvancedRpcLib.Channels
 
         protected virtual bool IsConnected(Stream stream) => true;
 
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposedValue)
+            {
+                _disposedValue = true;
+            }
+        }
+        public void Dispose()
+        {
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
     }
 }
